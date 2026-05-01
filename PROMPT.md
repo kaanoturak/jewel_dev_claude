@@ -63,8 +63,13 @@
 - [x] admin/product-queue.js — BUG A FIXED: `_fetchProducts` defined, loads PENDING_ADMIN for queue / all products for all-mode
 - [x] manufacturer/dashboard.js + admin/product-queue.js — BUG C FIXED: async blob thumbnails per row; `esc()` added to dashboard imports
 
+### Post-Phase Improvements Applied
+- [x] manufacturer/product-view.js — REVISION_REQUESTED_BY_SALES added to EDITABLE_STATUSES; Sales revision alert shown
+- [x] manufacturer/dashboard.js — REVISION_REQUESTED_BY_SALES in EDITABLE_STATUSES + revision section + stat card counter; N+1 thumbnail query replaced with `queryByIndex('mediaBlobs','productId',p.id)`
+- [x] test/e2e.test.js — testStep6_SalesRevisionLoop: full PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_SALES → READY_FOR_ECOMMERCE loop with role enforcement checks
+
 ## Next Task — Resume Here
-Nothing remaining. All known bugs are fixed. System is complete end-to-end.
+Nothing remaining. All phases complete and all known issues resolved.
 
 ## Key Implementation Notes
 - All workflow transitions: `import { transition } from '../../modules/workflow/index.js'`
