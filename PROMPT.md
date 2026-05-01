@@ -5,7 +5,7 @@
 - This file tells you where we are and what to do next
 
 ## Current Phase
-✅ ALL PHASES COMPLETE
+🔄 IN PROGRESS: Bug fixes — 3 known issues remain
 
 ## Completed
 ### Phase 0 — Core
@@ -55,8 +55,46 @@
 - [x] src/app.js — all 4 panels mounted via dynamic import: MANUFACTURER, ADMIN, SALES, SUPER_ADMIN
 - [x] PROMPT.md — all phases marked complete
 
+### Post-Phase Bug Fixes Applied
+- [x] workflow/index.js — `_validateProductReadiness` no longer blocks REVISION_REQUESTED_BY_SALES → PENDING_SALES
+- [x] manufacturer/product-form.js — per-variant cost fields with shared/per-variant toggle
+- [x] admin/product-detail.js — transfer price preview uses `body.querySelector()` (not `document.getElementById()`); `_collectAdminCosts` takes container param
+- [ ] sales/product-detail.js — BUG B: `descDiv.textContent` must be `descDiv.innerHTML`
+- [ ] admin/product-queue.js — BUG A: `_fetchProducts` function missing (crash)
+- [ ] manufacturer/dashboard.js + admin/product-queue.js — BUG C: no image thumbnails in table rows
+
+## Known Bugs — Fix in This Order
+
+### BUG A — CRASH: `_fetchProducts` undefined in admin/product-queue.js
+- **File:** `src/panels/admin/product-queue.js`
+- **Problem:** `_fetchProducts(mode)` is called at line 23 but never defined. Causes
+  `ReferenceError` — admin Review Queue and All Products views crash immediately.
+- **Fix:** Add the function before `render()`:
+  ```js
+  async function _fetchProducts(mode) {
+    if (mode === 'queue') return DB.queryByIndex('products', 'status', 'PENDING_ADMIN');
+    return DB.getAll('products');
+  }
+  ```
+
+### BUG B — WRONG: Sales panel productDescription still shows raw tags
+- **File:** `src/panels/sales/product-detail.js`, line 113
+- **Problem:** `descDiv.textContent = product.productDescription || '—'` — `textContent`
+  escapes HTML, so `<p>Hello</p>` renders as literal `&lt;p&gt;Hello&lt;/p&gt;`.
+- **Fix:** Change to `descDiv.innerHTML = product.productDescription || '—'` and remove
+  `white-space:pre-wrap` from `descDiv.style.cssText` (rich HTML handles its own whitespace).
+
+### BUG C — MISSING: No image thumbnails in product list tables
+- **Files:** `src/panels/manufacturer/dashboard.js`, `src/panels/admin/product-queue.js`
+- **Problem:** Product table rows show name + SKU only — no thumbnail image.
+- **Fix:** In each row, create a 36×40 `<img>` element; async-load the primary blob via
+  `DB.queryByIndex('mediaBlobs', 'productId', product.id)`, match `b.blobId === primaryImgMeta.id`,
+  then set `thumb.src = URL.createObjectURL(blob.blob)`. Place thumb alongside the product-name div.
+  Also add `esc` to `manufacturer/dashboard.js` imports.
+
 ## Next Task — Resume Here
-Nothing remaining. System is complete end-to-end.
+Fix BUG A first (crash), then BUG B (wrong render), then BUG C (missing thumbnails).
+After each fix: `git add -A && git commit -m "fix: ..." && git push origin main`
 
 ## Key Implementation Notes
 - All workflow transitions: `import { transition } from '../../modules/workflow/index.js'`
