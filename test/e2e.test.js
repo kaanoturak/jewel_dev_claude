@@ -335,7 +335,7 @@ async function testStep5_RevisionFlow() {
 }
 
 async function testStep6_SalesRevisionLoop() {
-  console.group('6. Sales revision loop: PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_SALES → READY_FOR_ECOMMERCE');
+  console.group('6. Sales revision loop: PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_ADMIN → PENDING_SALES → READY_FOR_ECOMMERCE');
 
   const productId = generateUUID();
   const sku       = await generateProductSKU('Earring', 'Silver');
@@ -362,9 +362,11 @@ async function testStep6_SalesRevisionLoop() {
   const atSales = await DB.get('products', productId);
   assert('Product reaches PENDING_SALES', atSales?.status === 'PENDING_SALES', atSales?.status);
 
-  // 1. ALLOWED_TRANSITIONS map includes REVISION_REQUESTED_BY_SALES → PENDING_SALES
-  assert('ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES → PENDING_SALES is legal',
-    ALLOWED_TRANSITIONS['REVISION_REQUESTED_BY_SALES']?.includes('PENDING_SALES'));
+  // 1. ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES routes through PENDING_ADMIN (not directly back to PENDING_SALES)
+  assert('ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES → PENDING_ADMIN is legal',
+    ALLOWED_TRANSITIONS['REVISION_REQUESTED_BY_SALES']?.includes('PENDING_ADMIN'));
+  assert('ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES → PENDING_SALES is NOT in map',
+    !ALLOWED_TRANSITIONS['REVISION_REQUESTED_BY_SALES']?.includes('PENDING_SALES'));
 
   // 2. Sales requests revision — notes are required
   await Auth.setCurrentUser(SALES_USER);
@@ -382,24 +384,31 @@ async function testStep6_SalesRevisionLoop() {
   assert('revisionNotes contains Sales feedback',
     salesRevised?.revisionNotes?.includes('lifestyle images'), salesRevised?.revisionNotes);
 
-  // 3. MANUFACTURER cannot transition from REVISION_REQUESTED_BY_SALES
+  // 3. MANUFACTURER cannot send directly to PENDING_SALES (must go through PENDING_ADMIN)
   await Auth.setCurrentUser(MFR_USER);
   await assertRejects(
     'MANUFACTURER cannot transition REVISION_REQUESTED_BY_SALES → PENDING_SALES',
     () => transition(productId, 'PENDING_SALES', MFR_USER.userId)
   );
 
-  // 4. Admin routes product back to PENDING_SALES
+  // 4. Manufacturer resubmits to PENDING_ADMIN
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  const resubmitted = await DB.get('products', productId);
+  assert('Status is PENDING_ADMIN after manufacturer resubmits',
+    resubmitted?.status === 'PENDING_ADMIN', resubmitted?.status);
+  assert('revisionNotes cleared after manufacturer resubmit',
+    resubmitted?.revisionNotes === null, String(resubmitted?.revisionNotes));
+
+  // 5. Admin re-approves to PENDING_SALES
   await Auth.setCurrentUser(ADMIN_USER);
   await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
 
   const backAtSales = await DB.get('products', productId);
-  assert('Status back to PENDING_SALES after admin re-routes',
+  assert('Status back to PENDING_SALES after admin re-approves',
     backAtSales?.status === 'PENDING_SALES', backAtSales?.status);
-  assert('revisionNotes cleared when admin routes back to PENDING_SALES',
-    backAtSales?.revisionNotes === null, String(backAtSales?.revisionNotes));
 
-  // 5. Sales can now approve to READY_FOR_ECOMMERCE
+  // 6. Sales can now approve to READY_FOR_ECOMMERCE
   await Auth.setCurrentUser(SALES_USER);
   await transition(productId, 'READY_FOR_ECOMMERCE', SALES_USER.userId);
 
