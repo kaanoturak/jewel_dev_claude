@@ -235,15 +235,13 @@ function _collectAdminCosts(container) {
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
 function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) {
-  const isPending = product.status === 'PENDING_ADMIN';
-  // ... (rest of the function using contentContainer for _collectAdminCosts)
-  const isPending = product.status === 'PENDING_ADMIN';
+  const isAdminPending = product.status === 'PENDING_ADMIN';
 
   const bar = document.createElement('div');
   bar.style.cssText = 'position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);'
     + 'padding:14px 28px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;z-index:10';
 
-  if (!isPending) {
+  if (!isAdminPending) {
     const note = document.createElement('p');
     note.style.cssText = 'font-size:13px;color:var(--text-muted);margin:0';
     note.textContent = `This product is ${product.status} — no actions available.`;

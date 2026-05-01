@@ -275,13 +275,13 @@ function _collectPricing() {
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
 function _buildActionBar(pageEl, product, navigate, returnTo) {
-  const isPending = product.status === 'PENDING_SALES';
+  const isSalesPending = product.status === 'PENDING_SALES';
 
   const bar = document.createElement('div');
   bar.style.cssText = 'position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);'
     + 'padding:14px 28px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;z-index:10';
 
-  if (!isPending) {
+  if (!isSalesPending) {
     const note = document.createElement('p');
     note.style.cssText = 'font-size:13px;color:var(--text-muted);margin:0';
     note.textContent = `This product is ${product.status} — no actions available.`;
