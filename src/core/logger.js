@@ -17,7 +17,7 @@ import DB from './db.js';
  *   variantId:     string | null,
  *   userId:        string,
  *   userRole:      string,
- *   action:        string,          // e.g. 'FIELD_UPDATE', 'STATUS_CHANGE', 'IMAGE_UPLOAD'
+ *   action:        string,          // e.g. 'FIELD_UPDATE', 'STATUS_CHANGE', 'PERMISSION_OVERRIDE', 'PERMISSION_VIOLATION'
  *   fromStatus:    string | null,
  *   toStatus:      string | null,
  *   changedFields: { field, oldValue, newValue }[],
@@ -46,5 +46,28 @@ export function logAction(entry) {
       productId: record.productId,
       userId:    record.userId,
     });
+  });
+}
+
+/**
+ * Log a blocked attempt due to lack of permissions.
+ */
+export function logViolation(role, action, detail = {}) {
+  logAction({
+    userRole: role,
+    action:   'PERMISSION_VIOLATION',
+    notes:    `Blocked: ${action}. ${JSON.stringify(detail)}`,
+  });
+}
+
+/**
+ * Log a dynamic permission override by a Super Admin.
+ */
+export function logOverride(adminId, role, action, newValue) {
+  logAction({
+    userId:   adminId,
+    userRole: 'SUPER_ADMIN',
+    action:   'PERMISSION_OVERRIDE',
+    notes:    `Changed ${role} permission for "${action}" to ${newValue}`,
   });
 }

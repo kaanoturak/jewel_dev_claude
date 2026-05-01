@@ -54,9 +54,15 @@
 
 ### Phase 4 — Super Admin Panel
 - [x] src/panels/super-admin/index.js — panel shell, nav: Dashboard, Users, Override
-- [x] src/panels/super-admin/dashboard.js — system stats, status breakdown, recent products
+- [x] src/panels/super-admin/dashboard.js — system stats, status breakdown, recent products, live permission matrix
 - [x] src/panels/super-admin/user-management.js — full user CRUD: create, edit, activate/deactivate
-- [x] src/panels/super-admin/override.js — product search, force any status transition, notes, audit logged
+- [x] src/panels/super-admin/override.js — product search, force any status transition, notes, audit logged, dynamic permission toggles
+
+### Phase 4.5 — Dynamic Permission Control
+- [x] src/modules/auth/permissions.js — centralized action/field/transition definitions
+- [x] src/modules/auth/index.js — dynamic override support, `canDo` action guard, persistent setting store
+- [x] src/core/logger.js — `logViolation` and `logOverride` support for audit trail
+- [x] test/e2e.test.js — new test blocks (7, 8, 9) for permission enforcement, dynamic toggles, and violation logging
 
 ### Phase 5 — Wire up
 - [x] src/app.js — all 4 panels mounted via dynamic import: MANUFACTURER, ADMIN, SALES, SUPER_ADMIN

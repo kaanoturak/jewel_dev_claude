@@ -1,1 +1,164 @@
-// Export module — formats products into Shopify-compatible CSV, JSON-LD schema.org/Product blocks, and the e-commerce feed JSON for Phase 5
+import { getEffectivePrice } from '../../core/engine.js';
+
+// ─── CSV helpers (RFC 4180) ───────────────────────────────────────────────────
+
+function csvCell(value) {
+  const str = value == null ? '' : String(value);
+  if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function csvRow(cells) {
+  return cells.map(csvCell).join(',');
+}
+
+function productHandle(product) {
+  return (product.name || product.sku || product.id)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function variantsByProductId(variants) {
+  const map = {};
+  for (const v of (variants || [])) {
+    if (!map[v.productId]) map[v.productId] = [];
+    map[v.productId].push(v);
+  }
+  return map;
+}
+
+// ─── Shopify CSV ──────────────────────────────────────────────────────────────
+
+const SHOPIFY_HEADERS = [
+  'Handle', 'Title', 'Body HTML', 'Vendor', 'Type', 'Tags',
+  'Variant SKU', 'Variant Price', 'Variant Compare At Price', 'Variant Inventory Qty',
+];
+
+/**
+ * Convert READY_FOR_ECOMMERCE products to a Shopify-compatible CSV string.
+ * RFC 4180 compliant: fields with commas/quotes/newlines are double-quoted;
+ * embedded quotes are doubled.
+ *
+ * Multi-variant products: first variant row carries all product fields;
+ * additional variant rows carry only Handle + variant columns.
+ *
+ * @param {object[]} products - Full product records from DB
+ * @param {object[]} variants - Full variant records from DB
+ * @returns {string} CSV string (CRLF line endings)
+ */
+export function toShopifyCSV(products, variants) {
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE');
+  const vByProd = variantsByProductId(variants);
+
+  const rows = [csvRow(SHOPIFY_HEADERS)];
+
+  for (const product of ready) {
+    const handle    = productHandle(product);
+    const title     = product.seoTitle || product.name || '';
+    const bodyHtml  = product.productDescription || '';
+    const vendor    = 'TuguJewelry';
+    const type      = product.category || '';
+    const tags      = Array.isArray(product.searchTags) ? product.searchTags.join(', ') : '';
+    const price     = product.sellingPrice != null ? String(product.sellingPrice) : '';
+    const compareAt = product.compareAtPrice != null ? String(product.compareAtPrice) : '';
+
+    const pvs = vByProd[product.id] || [];
+
+    if (pvs.length === 0) {
+      rows.push(csvRow([
+        handle, title, bodyHtml, vendor, type, tags,
+        product.sku || '', price, compareAt, '0',
+      ]));
+    } else {
+      const [first, ...rest] = pvs;
+      rows.push(csvRow([
+        handle, title, bodyHtml, vendor, type, tags,
+        first.sku || '', price, compareAt, String(first.stockCount ?? 0),
+      ]));
+      for (const v of rest) {
+        rows.push(csvRow([
+          handle, '', '', '', '', '',
+          v.sku || '', price, compareAt, String(v.stockCount ?? 0),
+        ]));
+      }
+    }
+  }
+
+  return rows.join('\r\n');
+}
+
+// ─── JSON feed ────────────────────────────────────────────────────────────────
+
+/**
+ * Convert READY_FOR_ECOMMERCE products to the e-commerce feed JSON array.
+ * Follows the toEcommerceFormat pattern from spec §12.
+ * effectivePrice is computed at export time (no active campaign context here).
+ *
+ * @param {object[]} products
+ * @param {object[]} variants
+ * @returns {object[]} Array of e-commerce product objects
+ */
+export function toJSONFeed(products, variants) {
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE');
+  const vByProd = variantsByProductId(variants);
+
+  return ready.map(product => ({
+    externalId:   product.sku,
+    title:        product.seoTitle || product.name,
+    bodyHtml:     product.productDescription,
+    vendor:       'TuguJewelry',
+    productType:  product.category,
+    tags:         product.searchTags || [],
+    images:       (product.images || []).map(img => ({
+      src: img.url || null,
+      alt: img.altText || '',
+    })),
+    variants: (vByProd[product.id] || []).map(v => ({
+      sku:               v.sku,
+      price:             getEffectivePrice(product, null),
+      compareAtPrice:    product.compareAtPrice ?? null,
+      inventoryQuantity: v.stockCount ?? 0,
+      option1:           v.size  ?? null,
+      option2:           v.color ?? null,
+    })),
+    metafields: {
+      seo_title:       product.seoTitle       ?? null,
+      seo_description: product.seoDescription ?? null,
+      material:        product.material       ?? null,
+      care:            product.careInstructions ?? null,
+    },
+    exportedAt: Date.now(),
+  }));
+}
+
+// ─── Browser download helpers ─────────────────────────────────────────────────
+
+/**
+ * Trigger a browser file download for a CSV string.
+ */
+export function downloadCSV(filename, csvString) {
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  _triggerDownload(filename, blob);
+}
+
+/**
+ * Trigger a browser file download for a JSON-serialisable value.
+ */
+export function downloadJSON(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  _triggerDownload(filename, blob);
+}
+
+function _triggerDownload(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

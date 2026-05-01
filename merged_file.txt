@@ -1,6 +1,6 @@
 ======================================================================
   BİRLEŞTİRİLMİŞ KOD DOSYASI
-  Tarih: 2026-05-01 15:51:43
+  Tarih: 2026-05-02 01:15:19
   Dizin: C:\Users\kaano\Desktop\craft\jewel_dev_claude
 ======================================================================
 
@@ -8,6 +8,7 @@ PROJE ŞEMASI (Sadece Dahil Edilen Dosyalar):
 📂 jewel_dev_claude
 ├── .claude
 │   └── settings.local.json
+├── .gitignore
 ├── PROMPT.md
 ├── index.html
 ├── media
@@ -73,10 +74,19 @@ PROJE ŞEMASI (Sadece Dahil Edilen Dosyalar):
 │           └── panel-shell.js
 ├── test
 │   ├── db.test.js
-│   └── e2e.test.js
+│   ├── e2e.test.js
+│   ├── engine.test.js
+│   └── validator.test.js
 └── tugu-pim-project-v1_1.md
 
 ======================================================================
+
+
+======================================================================
+DOSYA: .gitignore
+======================================================================
+
+media/
 
 
 ======================================================================
@@ -90,7 +100,14 @@ DOSYA: PROMPT.md
 - This file tells you where we are and what to do next
 
 ## Current Phase
-✅ ALL PHASES COMPLETE
+✅ ALL PHASES COMPLETE — production-ready for internal use
+
+## System State (as of last session)
+- Full 4-role lifecycle working: MANUFACTURER → ADMIN → SALES → SUPER_ADMIN
+- All workflow transitions enforced by both auth (canTransition) and state machine (ALLOWED_TRANSITIONS)
+- All role panels fully implemented with read/write views, forms, and action bars
+- Test suite: db.test.js (40 checks), e2e.test.js (6 test groups, full lifecycle)
+- No known bugs
 
 ## Completed
 ### Phase 0 — Core
@@ -111,9 +128,9 @@ DOSYA: PROMPT.md
 - [x] index.html — minimal app shell, links CSS, loads app.js module
 - [x] src/app.js — boot, Auth.init, role-based panel routing, dev role selector
 - [x] src/panels/manufacturer/index.js — panel shell, sidebar nav, internal router
-- [x] src/panels/manufacturer/dashboard.js — stat cards, revision alerts, products table, empty state
+- [x] src/panels/manufacturer/dashboard.js — stat cards, revision alerts, products table, onboarding empty state
 - [x] src/panels/manufacturer/product-form.js — 6-tab form, all spec §5 fields, validate(), transition() on submit
-- [x] src/panels/manufacturer/product-view.js — read-only detail, revision notes, Edit button for DRAFT/REVISION_REQUESTED
+- [x] src/panels/manufacturer/product-view.js — read-only detail, revision notes, Edit + Resubmit buttons
 
 ### Phase 2 — Admin Panel
 - [x] src/panels/admin/index.js — panel shell, nav: Dashboard, Review Queue, All Products, Stock, Audit Log
@@ -140,8 +157,21 @@ DOSYA: PROMPT.md
 - [x] src/app.js — all 4 panels mounted via dynamic import: MANUFACTURER, ADMIN, SALES, SUPER_ADMIN
 - [x] PROMPT.md — all phases marked complete
 
+### Post-Phase Fixes & Improvements
+- [x] workflow/index.js — `_validateProductReadiness` no longer blocks REVISION_REQUESTED_BY_SALES → PENDING_ADMIN
+- [x] manufacturer/product-form.js — per-variant cost fields with shared/per-variant toggle
+- [x] admin/product-detail.js — transfer price preview uses `body.querySelector()` (not `document.getElementById()`)
+- [x] sales/product-detail.js — `descDiv.innerHTML` renders rich HTML; `white-space:pre-wrap` removed
+- [x] admin/product-queue.js — `_fetchProducts` defined, loads PENDING_ADMIN for queue / all products for all-mode
+- [x] manufacturer/dashboard.js + admin/product-queue.js — async blob thumbnails per row; `esc()` XSS protection
+- [x] manufacturer/product-view.js — REVISION_REQUESTED_BY_SALES in EDITABLE_STATUSES; Sales revision alert; "Resubmit to Admin" button
+- [x] manufacturer/dashboard.js — onboarding empty state for first-time users; N+1 thumbnail replaced with queryByIndex
+- [x] modules/auth/index.js — MANUFACTURER_TRANSITIONS: `REVISION_REQUESTED_BY_SALES:PENDING_ADMIN` added; dead ADMIN_TRANSITIONS entry removed
+- [x] modules/workflow/index.js — REVISION_REQUESTED_BY_SALES routes to `['PENDING_ADMIN', 'ARCHIVED']`
+- [x] test/e2e.test.js — testStep6 covers full Sales revision loop through PENDING_ADMIN
+
 ## Next Task — Resume Here
-Nothing remaining. System is complete end-to-end.
+Nothing remaining. All phases complete and all known issues resolved.
 
 ## Key Implementation Notes
 - All workflow transitions: `import { transition } from '../../modules/workflow/index.js'`
@@ -153,6 +183,22 @@ Nothing remaining. System is complete end-to-end.
 - Super Admin override: call `transition()` with SUPER_ADMIN user — workflow bypasses ALLOWED_TRANSITIONS for that role
 - Image blobs: store in mediaBlobs store with blobId; MediaObject on product holds metadata only
 - campaign effectivePrice: never stored, always computed at render time via `getEffectivePrice(product, campaign)` from engine.js
+
+## Known Limitations (Phase 6 scope)
+- No real authentication — login screen accepts any credentials; user identity is stored in IndexedDB settings
+- No server-side persistence — all data is in browser IndexedDB, lost on clear/different browser
+- No e-commerce export — READY_FOR_ECOMMERCE status is terminal; no Shopify/WooCommerce push yet
+- No image compression — blobs stored raw; large images may stress IndexedDB on some browsers
+- No pagination — all product queries load full result sets into memory
+- No stock update UI — stock counts visible in Admin Stock view but only editable via direct DB writes
+- No notification system — revision requests are visible only when user actively opens the panel
+
+## What Phase 6 (E-Commerce Integration) Will Need
+- Export adapter: read READY_FOR_ECOMMERCE products + campaigns, format for target platform (Shopify/WooCommerce)
+- Webhook or polling to sync stock levels back from the platform into IndexedDB
+- A new `PUBLISHED` status after READY_FOR_ECOMMERCE (optional — depends on platform integration)
+- Real auth: JWT or session token, server-side user store
+- Optionally: backend API replacing IndexedDB for multi-device / multi-user shared state
 
 ## CSS Classes Already Available (src/shared/styles/index.css)
 Layouts: .panel, .sidebar, .panel-main, .panel-header, .panel-content
@@ -1416,7 +1462,12 @@ DOSYA: .claude/settings.local.json
   "permissions": {
     "allow": [
       "Bash(New-Item -Path \"c:\\\\Users\\\\kaano\\\\Desktop\\\\craft\\\\jewel_dev_claude\\\\src\\\\panels\\\\manufacturer\\\\product-view.js\" -ItemType File -Force)",
-      "Bash(Out-Null)"
+      "Bash(Out-Null)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)"
     ]
   }
 }
@@ -1812,14 +1863,26 @@ const DB = {
    * Each key in `filters` must equal the corresponding field on the record.
    * Example: DB.query('products', { status: 'PENDING_ADMIN', createdBy: userId })
    *
-   * For large result sets, prefer queryByIndex on an indexed field first,
-   * then filter the smaller array in the caller.
+   * Performance optimization: if any filter key matches a defined index for
+   * the store, it uses queryByIndex first to narrow the result set.
    */
   query(storeName, filters = {}) {
-    return DB.getAll(storeName).then((records) => {
-      const keys = Object.keys(filters);
-      if (keys.length === 0) return records;
-      return records.filter((r) => keys.every((k) => r[k] === filters[k]));
+    const keys = Object.keys(filters);
+    if (keys.length === 0) return DB.getAll(storeName);
+
+    // Find the first filter key that has a corresponding index.
+    const storeDef = STORES.find((s) => s.name === storeName);
+    const indexKey = keys.find((k) => storeDef?.indexes.some((idx) => idx.keyPath === k));
+
+    const basePromise = indexKey
+      ? DB.queryByIndex(storeName, indexKey, filters[indexKey])
+      : DB.getAll(storeName);
+
+    return basePromise.then((records) => {
+      // Apply remaining filters (or all filters if no index was used) in memory.
+      const remainingKeys = indexKey ? keys.filter((k) => k !== indexKey) : keys;
+      if (remainingKeys.length === 0) return records;
+      return records.filter((r) => remainingKeys.every((k) => r[k] === filters[k]));
     });
   },
 
@@ -2107,7 +2170,7 @@ export function get(key) {
 export function getSnapshot() {
   if (!_product) return null;
   const { _effectivePrice, ...stored } = _product;
-  return { ...stored };
+  return structuredClone(stored);
 }
 
 /**
@@ -2418,13 +2481,13 @@ const PANEL_ACCESS = {
 const MANUFACTURER_TRANSITIONS = new Set([
   'DRAFT:PENDING_ADMIN',
   'REVISION_REQUESTED_BY_ADMIN:PENDING_ADMIN',
+  'REVISION_REQUESTED_BY_SALES:PENDING_ADMIN',
 ]);
 
 const ADMIN_TRANSITIONS = new Set([
   'PENDING_ADMIN:PENDING_SALES',
   'PENDING_ADMIN:REVISION_REQUESTED_BY_ADMIN',
   'PENDING_ADMIN:REJECTED',
-  'REVISION_REQUESTED_BY_SALES:PENDING_SALES',
   // Admin can archive from any status — wildcard handled in canTransition
 ]);
 
@@ -2570,7 +2633,170 @@ export function formatCost(value) {
 DOSYA: src/modules/export/index.js
 ======================================================================
 
-// Export module — formats products into Shopify-compatible CSV, JSON-LD schema.org/Product blocks, and the e-commerce feed JSON for Phase 5
+import { getEffectivePrice } from '../../core/engine.js';
+
+// ─── CSV helpers (RFC 4180) ───────────────────────────────────────────────────
+
+function csvCell(value) {
+  const str = value == null ? '' : String(value);
+  if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function csvRow(cells) {
+  return cells.map(csvCell).join(',');
+}
+
+function productHandle(product) {
+  return (product.name || product.sku || product.id)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function variantsByProductId(variants) {
+  const map = {};
+  for (const v of (variants || [])) {
+    if (!map[v.productId]) map[v.productId] = [];
+    map[v.productId].push(v);
+  }
+  return map;
+}
+
+// ─── Shopify CSV ──────────────────────────────────────────────────────────────
+
+const SHOPIFY_HEADERS = [
+  'Handle', 'Title', 'Body HTML', 'Vendor', 'Type', 'Tags',
+  'Variant SKU', 'Variant Price', 'Variant Compare At Price', 'Variant Inventory Qty',
+];
+
+/**
+ * Convert READY_FOR_ECOMMERCE products to a Shopify-compatible CSV string.
+ * RFC 4180 compliant: fields with commas/quotes/newlines are double-quoted;
+ * embedded quotes are doubled.
+ *
+ * Multi-variant products: first variant row carries all product fields;
+ * additional variant rows carry only Handle + variant columns.
+ *
+ * @param {object[]} products - Full product records from DB
+ * @param {object[]} variants - Full variant records from DB
+ * @returns {string} CSV string (CRLF line endings)
+ */
+export function toShopifyCSV(products, variants) {
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE');
+  const vByProd = variantsByProductId(variants);
+
+  const rows = [csvRow(SHOPIFY_HEADERS)];
+
+  for (const product of ready) {
+    const handle    = productHandle(product);
+    const title     = product.seoTitle || product.name || '';
+    const bodyHtml  = product.productDescription || '';
+    const vendor    = 'TuguJewelry';
+    const type      = product.category || '';
+    const tags      = Array.isArray(product.searchTags) ? product.searchTags.join(', ') : '';
+    const price     = product.sellingPrice != null ? String(product.sellingPrice) : '';
+    const compareAt = product.compareAtPrice != null ? String(product.compareAtPrice) : '';
+
+    const pvs = vByProd[product.id] || [];
+
+    if (pvs.length === 0) {
+      rows.push(csvRow([
+        handle, title, bodyHtml, vendor, type, tags,
+        product.sku || '', price, compareAt, '0',
+      ]));
+    } else {
+      const [first, ...rest] = pvs;
+      rows.push(csvRow([
+        handle, title, bodyHtml, vendor, type, tags,
+        first.sku || '', price, compareAt, String(first.stockCount ?? 0),
+      ]));
+      for (const v of rest) {
+        rows.push(csvRow([
+          handle, '', '', '', '', '',
+          v.sku || '', price, compareAt, String(v.stockCount ?? 0),
+        ]));
+      }
+    }
+  }
+
+  return rows.join('\r\n');
+}
+
+// ─── JSON feed ────────────────────────────────────────────────────────────────
+
+/**
+ * Convert READY_FOR_ECOMMERCE products to the e-commerce feed JSON array.
+ * Follows the toEcommerceFormat pattern from spec §12.
+ * effectivePrice is computed at export time (no active campaign context here).
+ *
+ * @param {object[]} products
+ * @param {object[]} variants
+ * @returns {object[]} Array of e-commerce product objects
+ */
+export function toJSONFeed(products, variants) {
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE');
+  const vByProd = variantsByProductId(variants);
+
+  return ready.map(product => ({
+    externalId:   product.sku,
+    title:        product.seoTitle || product.name,
+    bodyHtml:     product.productDescription,
+    vendor:       'TuguJewelry',
+    productType:  product.category,
+    tags:         product.searchTags || [],
+    images:       (product.images || []).map(img => ({
+      src: img.url || null,
+      alt: img.altText || '',
+    })),
+    variants: (vByProd[product.id] || []).map(v => ({
+      sku:               v.sku,
+      price:             getEffectivePrice(product, null),
+      compareAtPrice:    product.compareAtPrice ?? null,
+      inventoryQuantity: v.stockCount ?? 0,
+      option1:           v.size  ?? null,
+      option2:           v.color ?? null,
+    })),
+    metafields: {
+      seo_title:       product.seoTitle       ?? null,
+      seo_description: product.seoDescription ?? null,
+      material:        product.material       ?? null,
+      care:            product.careInstructions ?? null,
+    },
+    exportedAt: Date.now(),
+  }));
+}
+
+// ─── Browser download helpers ─────────────────────────────────────────────────
+
+/**
+ * Trigger a browser file download for a CSV string.
+ */
+export function downloadCSV(filename, csvString) {
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  _triggerDownload(filename, blob);
+}
+
+/**
+ * Trigger a browser file download for a JSON-serialisable value.
+ */
+export function downloadJSON(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  _triggerDownload(filename, blob);
+}
+
+function _triggerDownload(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 
 ======================================================================
@@ -2734,7 +2960,7 @@ export const ALLOWED_TRANSITIONS = {
   PENDING_ADMIN:               ['PENDING_SALES', 'REVISION_REQUESTED_BY_ADMIN', 'REJECTED', 'ARCHIVED'],
   REVISION_REQUESTED_BY_ADMIN: ['PENDING_ADMIN', 'ARCHIVED'],
   PENDING_SALES:               ['READY_FOR_ECOMMERCE', 'REVISION_REQUESTED_BY_SALES', 'REJECTED', 'ARCHIVED'],
-  REVISION_REQUESTED_BY_SALES: ['PENDING_SALES', 'ARCHIVED'],
+  REVISION_REQUESTED_BY_SALES: ['PENDING_ADMIN', 'ARCHIVED'],
   READY_FOR_ECOMMERCE:         ['ARCHIVED'],
   REJECTED:                    [],  // Terminal for non-SUPER_ADMIN
   ARCHIVED:                    [],  // Soft-delete; recoverable only by SUPER_ADMIN override
@@ -2771,17 +2997,7 @@ function _requireNotes(toStatus, notes) {
 }
 
 function _validateProductReadiness(product, toStatus) {
-  // Revision, rejection, and archive transitions require notes (enforced separately)
-  // but never need cost-layer or readiness validation.
-  if (
-    toStatus === 'REVISION_REQUESTED_BY_ADMIN' ||
-    toStatus === 'REVISION_REQUESTED_BY_SALES' ||
-    toStatus === 'REJECTED' ||
-    toStatus === 'ARCHIVED'
-  ) return;
-
   if (toStatus === 'PENDING_ADMIN') {
-    // Manufacturer submitting — validate full product + manufacturer costs.
     const r1 = validate(PRODUCT_SCHEMA, product);
     const r2 = validate(MANUFACTURER_COST_SCHEMA, product);
     const allErrors = { ...r1.errors, ...r2.errors };
@@ -2790,23 +3006,27 @@ function _validateProductReadiness(product, toStatus) {
         `Product cannot be submitted — validation errors on: ${Object.keys(allErrors).join(', ')}`
       );
     }
+    return;
   }
 
   if (toStatus === 'PENDING_SALES') {
-    // Admin approving — admin cost layer must be complete.
     const { valid, errors } = validate(ADMIN_COST_SCHEMA, product);
     if (!valid) {
       throw new Error(
         `Admin cost layer is incomplete — errors on: ${Object.keys(errors).join(', ')}`
       );
     }
+    return;
   }
 
   if (toStatus === 'READY_FOR_ECOMMERCE') {
     if (!product.sellingPrice || Number(product.sellingPrice) <= 0) {
       throw new Error('Selling price must be set before marking product as ready for e-commerce');
     }
+    return;
   }
+
+  // All other transitions (REVISION_REQUESTED_BY_*, REJECTED, ARCHIVED, etc.) — no readiness checks.
 }
 
 function _buildProductUpdates(product, toStatus, userId, notes, now) {
@@ -2961,16 +3181,10 @@ export async function transition(productId, toStatus, userId, notes = null) {
 DOSYA: src/panels/admin/audit-log.js
 ======================================================================
 
-import DB from '../../core/db.js';
+import DB      from '../../core/db.js';
+import { esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function formatTs(ts) {
   if (!ts) return '—';
@@ -3583,16 +3797,9 @@ import DB                              from '../../core/db.js';
 import { calculate }                   from '../../core/engine.js';
 import { transition }                  from '../../modules/workflow/index.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
-import { statusBadge, formatCurrency, formatDate, formatRelativeTime } from '../../shared/utils/index.js';
+import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function field(label, value) {
   if (value === '' || value === null || value === undefined) return '';
@@ -3790,11 +3997,11 @@ function _buildAdminCostForm(container, product) {
   function updatePreview() {
     const draft = {
       ...product,
-      adminTaxPct:          parseFloatOrNull(document.getElementById('admin-tax-pct')?.value),
-      adminMarginPct:       parseFloatOrNull(document.getElementById('admin-margin-pct')?.value),
-      adminLogisticsCost:   parseFloatOrNull(document.getElementById('admin-logistics')?.value),
-      adminMarketingCost:   parseFloatOrNull(document.getElementById('admin-marketing')?.value),
-      adminMiscCost:        parseFloatOrNull(document.getElementById('admin-misc')?.value),
+      adminTaxPct:          parseFloatOrNull(body.querySelector('#admin-tax-pct')?.value),
+      adminMarginPct:       parseFloatOrNull(body.querySelector('#admin-margin-pct')?.value),
+      adminLogisticsCost:   parseFloatOrNull(body.querySelector('#admin-logistics')?.value),
+      adminMarketingCost:   parseFloatOrNull(body.querySelector('#admin-marketing')?.value),
+      adminMiscCost:        parseFloatOrNull(body.querySelector('#admin-misc')?.value),
     };
     const { transferPrice } = calculate(draft);
     previewEl.textContent = transferPrice != null ? formatCurrency(transferPrice) : '—';
@@ -3810,26 +4017,26 @@ function parseFloatOrNull(str) {
   return isNaN(n) ? null : n;
 }
 
-function _collectAdminCosts() {
+function _collectAdminCosts(container) {
   return {
-    adminTaxPct:         parseFloatOrNull(document.getElementById('admin-tax-pct')?.value),
-    adminMarginPct:      parseFloatOrNull(document.getElementById('admin-margin-pct')?.value),
-    adminLogisticsCost:  parseFloatOrNull(document.getElementById('admin-logistics')?.value),
-    adminMarketingCost:  parseFloatOrNull(document.getElementById('admin-marketing')?.value),
-    adminMiscCost:       parseFloatOrNull(document.getElementById('admin-misc')?.value),
+    adminTaxPct:         parseFloatOrNull(container.querySelector('#admin-tax-pct')?.value),
+    adminMarginPct:      parseFloatOrNull(container.querySelector('#admin-margin-pct')?.value),
+    adminLogisticsCost:  parseFloatOrNull(container.querySelector('#admin-logistics')?.value),
+    adminMarketingCost:  parseFloatOrNull(container.querySelector('#admin-marketing')?.value),
+    adminMiscCost:       parseFloatOrNull(container.querySelector('#admin-misc')?.value),
   };
 }
 
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
-function _buildActionBar(pageEl, product, navigate, returnTo) {
-  const isPending = product.status === 'PENDING_ADMIN';
+function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) {
+  const isAdminPending = product.status === 'PENDING_ADMIN';
 
   const bar = document.createElement('div');
   bar.style.cssText = 'position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);'
     + 'padding:14px 28px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;z-index:10';
 
-  if (!isPending) {
+  if (!isAdminPending) {
     const note = document.createElement('p');
     note.style.cssText = 'font-size:13px;color:var(--text-muted);margin:0';
     note.textContent = `This product is ${product.status} — no actions available.`;
@@ -3894,7 +4101,7 @@ function _buildActionBar(pageEl, product, navigate, returnTo) {
   }
 
   async function saveCosts() {
-    const costs = _collectAdminCosts();
+    const costs = _collectAdminCosts(contentContainer);
     if (costs.adminMarginPct === null) {
       alert('Target Margin % is required before saving.');
       return false;
@@ -4048,7 +4255,7 @@ export async function render(container, navigate, params = {}) {
   _buildAdminCostForm(content, product);
 
   // Action bar (sticky bottom)
-  _buildActionBar(pageEl, product, navigate, returnTo);
+  _buildActionBar(pageEl, product, navigate, returnTo, content);
 
   container.appendChild(pageEl);
 }
@@ -4058,25 +4265,37 @@ export async function render(container, navigate, params = {}) {
 DOSYA: src/panels/admin/product-queue.js
 ======================================================================
 
-import DB                                           from '../../core/db.js';
-import { statusBadge, formatRelativeTime, truncate } from '../../shared/utils/index.js';
+import DB                                                from '../../core/db.js';
+import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/utils/index.js';
 
 // ─── Data fetching ─────────────────────────────────────────────────────────────
 
 async function _fetchProducts(mode) {
+  let products;
   if (mode === 'queue') {
-    return DB.queryByIndex('products', 'status', 'PENDING_ADMIN');
+    products = await DB.queryByIndex('products', 'status', 'PENDING_ADMIN');
+  } else {
+    products = await DB.getAll('products');
   }
-  return DB.getAll('products');
-}
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // Fetch primary image for each product
+  for (const p of products) {
+    if (p.images && p.images.length > 0) {
+      const primaryIdx = p.primaryImageIndex ?? 0;
+      const img = p.images[primaryIdx];
+      if (img && img.id) {
+        try {
+          const blobRecord = await DB.get('mediaBlobs', img.id);
+          if (blobRecord && blobRecord.blob) {
+            p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
+          }
+        } catch (err) {
+          console.warn(`Failed to load thumbnail for ${p.id}:`, err);
+        }
+      }
+    }
+  }
+  return products;
 }
 
 // ─── Render ────────────────────────────────────────────────────────────────────
@@ -4213,10 +4432,17 @@ function renderTable(container, products, navigate, mode) {
     const tr = document.createElement('tr');
 
     const nameTd = document.createElement('td');
+    const thumbHTML = product.primaryImageUrl
+      ? `<img src="${product.primaryImageUrl}" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
+      : `<div style="width:32px;height:32px;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:0.3">💎</div>`;
+
     nameTd.innerHTML = `
-      <div class="product-name">
-        ${esc(product.name || 'Untitled')}
-        <small>${esc(product.sku || '—')}</small>
+      <div class="product-name" style="display:flex;align-items:center;gap:10px">
+        ${thumbHTML}
+        <div>
+          ${esc(product.name || 'Untitled')}
+          <small>${esc(product.sku || '—')}</small>
+        </div>
       </div>`;
 
     const catTd = document.createElement('td');
@@ -4266,16 +4492,10 @@ function renderTable(container, products, navigate, mode) {
 DOSYA: src/panels/admin/stock-view.js
 ======================================================================
 
-import DB from '../../core/db.js';
+import DB      from '../../core/db.js';
+import { esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 
@@ -4476,24 +4696,41 @@ DOSYA: src/panels/manufacturer/dashboard.js
 
 import DB                              from '../../core/db.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
-import { statusBadge, formatRelativeTime, truncate } from '../../shared/utils/index.js';
+import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/utils/index.js';
 
 // Statuses that allow the manufacturer to edit the product
-const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN', 'REVISION_REQUESTED_BY_SALES']);
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function fetchMyProducts() {
   const user = getCurrentUser();
   if (!user) return [];
-  return DB.queryByIndex('products', 'createdBy', user.userId);
+  const products = await DB.queryByIndex('products', 'createdBy', user.userId);
+
+  // Fetch primary image for each product to show in the table
+  for (const p of products) {
+    const primaryIdx  = p.primaryImageIndex ?? 0;
+    const primaryMeta = p.images?.[primaryIdx];
+    if (!primaryMeta?.id) continue;
+    try {
+      const blobs = await DB.queryByIndex('mediaBlobs', 'productId', p.id);
+      const rec   = (blobs || []).find(b => b.blobId === primaryMeta.id);
+      if (rec?.blob) p.primaryImageUrl = URL.createObjectURL(rec.blob);
+    } catch (err) {
+      console.warn(`Failed to load thumbnail for ${p.id}:`, err);
+    }
+  }
+  return products;
 }
 
 // ─── Stat cards ───────────────────────────────────────────────────────────────
 
 function renderStatCards(container, products) {
   const total     = products.length;
-  const revisions = products.filter((p) => p.status === 'REVISION_REQUESTED_BY_ADMIN').length;
+  const revisions = products.filter((p) =>
+    p.status === 'REVISION_REQUESTED_BY_ADMIN' || p.status === 'REVISION_REQUESTED_BY_SALES'
+  ).length;
   const submitted = products.filter((p) => p.status === 'PENDING_ADMIN').length;
 
   const cards = [
@@ -4521,7 +4758,10 @@ function renderStatCards(container, products) {
 // ─── Revision alerts ──────────────────────────────────────────────────────────
 
 function renderRevisionSection(container, products, navigate) {
-  const revisions = products.filter((p) => p.status === 'REVISION_REQUESTED_BY_ADMIN');
+  const revisions = products.filter((p) =>
+    p.status === 'REVISION_REQUESTED_BY_ADMIN' ||
+    p.status === 'REVISION_REQUESTED_BY_SALES'
+  );
   if (revisions.length === 0) return;
 
   const section = document.createElement('div');
@@ -4535,13 +4775,15 @@ function renderRevisionSection(container, products, navigate) {
 
   const list = section.querySelector('#revision-list');
   for (const product of revisions) {
+    const byLabel = product.status === 'REVISION_REQUESTED_BY_SALES' ? 'Sales' : 'Admin';
     const row = document.createElement('div');
     row.className = 'revision-item';
     row.innerHTML = `
-      <span class="revision-item__name">${product.name || 'Untitled'}</span>
-      <span class="revision-item__sku">${product.sku || '—'}</span>
+      <span class="revision-item__name">${esc(product.name || 'Untitled')}</span>
+      <span class="revision-item__sku">${esc(product.sku || '—')}</span>
       <span class="revision-item__notes">
-        ${product.revisionNotes ? truncate(product.revisionNotes, 80) : 'No notes provided'}
+        <strong style="font-size:11px;color:var(--text-muted)">${esc(byLabel)}:</strong>
+        ${product.revisionNotes ? esc(truncate(product.revisionNotes, 80)) : 'No notes provided'}
       </span>
     `;
 
@@ -4608,10 +4850,17 @@ function renderProductsTable(container, products, navigate) {
 
     // Product name + SKU cell
     const nameTd = document.createElement('td');
+    const thumbHTML = product.primaryImageUrl
+      ? `<img src="${product.primaryImageUrl}" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
+      : `<div style="width:32px;height:32px;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:0.3">💎</div>`;
+
     nameTd.innerHTML = `
-      <div class="product-name">
-        ${product.name || 'Untitled'}
-        <small>${product.sku || '—'}</small>
+      <div class="product-name" style="display:flex;align-items:center;gap:10px">
+        ${thumbHTML}
+        <div>
+          ${esc(product.name || 'Untitled')}
+          <small>${esc(product.sku || '—')}</small>
+        </div>
       </div>`;
 
     // Category
@@ -4656,6 +4905,38 @@ function renderProductsTable(container, products, navigate) {
   container.appendChild(section);
 }
 
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+function renderOnboarding(container, navigate) {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;align-items:center;justify-content:center;'
+    + 'min-height:420px;padding:40px';
+
+  const inner = document.createElement('div');
+  inner.className = 'empty-state';
+  inner.style.cssText = 'max-width:500px;text-align:center';
+  inner.innerHTML = `
+    <div class="empty-state__icon" style="font-size:52px">💎</div>
+    <div class="empty-state__title" style="font-size:22px;margin-bottom:10px">
+      Welcome to TuguJewelry PIM
+    </div>
+    <div class="empty-state__desc" style="margin-bottom:28px;line-height:1.6">
+      Manage your jewelry products from creation to e-commerce.<br>
+      Create your first product — submit it to Admin for review, then to Sales for pricing.
+    </div>
+  `;
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn--primary';
+  btn.style.cssText = 'font-size:15px;padding:12px 32px';
+  btn.textContent = 'Create Product';
+  btn.addEventListener('click', () => navigate('products/new'));
+  inner.appendChild(btn);
+
+  wrapper.appendChild(inner);
+  container.appendChild(wrapper);
+}
+
 // ─── Public render ────────────────────────────────────────────────────────────
 
 export async function render(container, navigate) {
@@ -4678,6 +4959,12 @@ export async function render(container, navigate) {
   }
 
   container.innerHTML = '';
+
+  if (products.length === 0) {
+    renderOnboarding(container, navigate);
+    return;
+  }
+
   renderStatCards(container, products);
   renderRevisionSection(container, products, navigate);
   renderProductsTable(container, products, navigate);
@@ -4868,6 +5155,7 @@ import {
   PRODUCT_CATEGORIES,
   PRODUCT_MATERIALS,
   formatCurrency,
+  esc,
 }                                       from '../../shared/utils/index.js';
 import { logAction }                    from '../../core/logger.js';
 
@@ -4878,6 +5166,7 @@ let _draft             = {};
 let _variants          = [];
 let _pendingBlobs      = {};   // blobId → { file: File, objectURL: string }
 let _deletedVariantIds = [];
+let _sharedCostMode    = true;
 let _activeTab         = 0;
 let _navigate          = null;
 
@@ -4886,15 +5175,6 @@ const TABS = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function _initDraft() {
   return {
@@ -4943,7 +5223,12 @@ async function _loadProduct(productId) {
       costLabor:     product.costLabor     ?? '',
       costPackaging: product.costPackaging ?? '',
     },
-    variants: variants || [],
+    variants: (variants || []).map(v => ({
+      ...v,
+      costMaterial:  v.costMaterial  ?? '',
+      costLabor:     v.costLabor     ?? '',
+      costPackaging: v.costPackaging ?? '',
+    })),
   };
 }
 
@@ -4965,6 +5250,16 @@ async function _saveProduct() {
     altText:          img.altText || '',
   }));
 
+  if (_sharedCostMode) {
+    const m = Number(_draft.costMaterial)  || 0;
+    const l = Number(_draft.costLabor)     || 0;
+    const p = Number(_draft.costPackaging) || 0;
+    for (const v of _variants) { v.costMaterial = m; v.costLabor = l; v.costPackaging = p; }
+  } else {
+    _draft.costMaterial  = _variants.reduce((s, v) => s + (Number(v.costMaterial)  || 0), 0);
+    _draft.costLabor     = _variants.reduce((s, v) => s + (Number(v.costLabor)     || 0), 0);
+    _draft.costPackaging = _variants.reduce((s, v) => s + (Number(v.costPackaging) || 0), 0);
+  }
   const costBase = _calcBase(_draft);
 
   if (_productId) {
@@ -5075,12 +5370,15 @@ async function _saveProduct() {
   for (const v of _variants) {
     if (v.variantId) {
       await DB.patch('variants', v.variantId, {
-        size:       v.size  || null,
-        color:      v.color || null,
-        weight:     v.weight ? Number(v.weight) : null,
-        stockCount: Number(v.stockCount) || 0,
-        isActive:   v.isActive !== false,
-        updatedAt:  now,
+        size:          v.size  || null,
+        color:         v.color || null,
+        weight:        v.weight ? Number(v.weight) : null,
+        stockCount:    Number(v.stockCount) || 0,
+        isActive:      v.isActive !== false,
+        costMaterial:  Number(v.costMaterial)  || 0,
+        costLabor:     Number(v.costLabor)     || 0,
+        costPackaging: Number(v.costPackaging) || 0,
+        updatedAt:     now,
       });
     } else {
       const vId = generateUUID();
@@ -5097,6 +5395,9 @@ async function _saveProduct() {
             customAttributes: [],
             stockCount:       Number(v.stockCount) || 0,
             isActive:         v.isActive !== false,
+            costMaterial:     Number(v.costMaterial)  || 0,
+            costLabor:        Number(v.costLabor)     || 0,
+            costPackaging:    Number(v.costPackaging) || 0,
             createdAt:        now,
             updatedAt:        now,
           });
@@ -5142,7 +5443,17 @@ function _collect(formPage) {
         _variants[i].weight     = parseFloat(row.querySelector('[data-f="weight"]')?.value)  || null;
         _variants[i].stockCount = parseInt(row.querySelector('[data-f="stock"]')?.value, 10) || 0;
         _variants[i].isActive   = row.querySelector('[data-f="active"]')?.checked !== false;
+        if (!_sharedCostMode) {
+          _variants[i].costMaterial  = row.querySelector('[data-f="costMat"]')?.value || '';
+          _variants[i].costLabor     = row.querySelector('[data-f="costLab"]')?.value || '';
+          _variants[i].costPackaging = row.querySelector('[data-f="costPkg"]')?.value || '';
+        }
       });
+      if (_sharedCostMode) {
+        _draft.costMaterial  = formPage.querySelector('#sc-mat')?.value ?? _draft.costMaterial;
+        _draft.costLabor     = formPage.querySelector('#sc-lab')?.value ?? _draft.costLabor;
+        _draft.costPackaging = formPage.querySelector('#sc-pkg')?.value ?? _draft.costPackaging;
+      }
       break;
     case 4:
       _draft.costMaterial  = formPage.querySelector('#f-cost-mat')?.value ?? _draft.costMaterial;
@@ -5465,9 +5776,41 @@ function _buildTagsWidget() {
 
 // ─── Tab: Variants ─────────────────────────────────────────────────────────────
 
+function _renderSharedCostInputs(container) {
+  container.innerHTML = '';
+  if (!_sharedCostMode) {
+    container.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Costs are set per-variant in the table above.</p>';
+    return;
+  }
+  const m = parseFloat(_draft.costMaterial)  || 0;
+  const l = parseFloat(_draft.costLabor)     || 0;
+  const p = parseFloat(_draft.costPackaging) || 0;
+  container.innerHTML = `
+    <div class="form-row-3">
+      <div class="form-group">
+        <label class="form-label" for="sc-mat">Material Cost (USD) *</label>
+        <input id="sc-mat" class="form-input" type="number" min="0.01" step="0.01"
+               value="${m || ''}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sc-lab">Labor Cost (USD) *</label>
+        <input id="sc-lab" class="form-input" type="number" min="0" step="0.01"
+               value="${l || ''}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sc-pkg">
+          Packaging Cost <span class="form-optional">(optional)</span>
+        </label>
+        <input id="sc-pkg" class="form-input" type="number" min="0" step="0.01"
+               value="${p || ''}" placeholder="0.00">
+      </div>
+    </div>`;
+}
+
 function _tabVariants() {
   if (_variants.length === 0) {
-    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true });
+    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true,
+                     costMaterial: '', costLabor: '', costPackaging: '' });
   }
 
   const d = document.createElement('div');
@@ -5482,12 +5825,43 @@ function _tabVariants() {
   addBtn.textContent = '+ Add Variant';
   addBtn.addEventListener('click', () => {
     _collectVariantRows(d);
-    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true });
+    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true,
+                     costMaterial: '', costLabor: '', costPackaging: '' });
     d.querySelector('#vt-wrap')?.replaceWith(_buildVariantTable());
   });
   header.appendChild(addBtn);
   d.appendChild(header);
   d.appendChild(_buildVariantTable());
+
+  // ─── Per-variant cost toggle ───────────────────────────────────────────────
+  const costToggle = document.createElement('div');
+  costToggle.style.cssText = 'margin-top:20px;padding-top:16px;border-top:1px solid var(--border)';
+
+  const checkLabel = document.createElement('label');
+  checkLabel.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;'
+    + 'cursor:pointer;margin-bottom:12px;font-weight:500';
+  const checkbox = document.createElement('input');
+  checkbox.type    = 'checkbox';
+  checkbox.id      = 'shared-cost-check';
+  checkbox.checked = _sharedCostMode;
+  const checkText  = document.createElement('span');
+  checkText.textContent = 'Same cost for all variants';
+  checkLabel.append(checkbox, checkText);
+  costToggle.appendChild(checkLabel);
+
+  const costInputsEl = document.createElement('div');
+  costInputsEl.id = 'variant-cost-inputs';
+  _renderSharedCostInputs(costInputsEl);
+  costToggle.appendChild(costInputsEl);
+  d.appendChild(costToggle);
+
+  checkbox.addEventListener('change', () => {
+    _collectVariantRows(d);
+    _sharedCostMode = checkbox.checked;
+    d.querySelector('#vt-wrap')?.replaceWith(_buildVariantTable());
+    _renderSharedCostInputs(costInputsEl);
+  });
+
   return d;
 }
 
@@ -5500,6 +5874,11 @@ function _collectVariantRows(panel) {
     _variants[i].weight     = parseFloat(row.querySelector('[data-f="weight"]')?.value)  || null;
     _variants[i].stockCount = parseInt(row.querySelector('[data-f="stock"]')?.value, 10) || 0;
     _variants[i].isActive   = row.querySelector('[data-f="active"]')?.checked !== false;
+    if (!_sharedCostMode) {
+      _variants[i].costMaterial  = row.querySelector('[data-f="costMat"]')?.value || '';
+      _variants[i].costLabor     = row.querySelector('[data-f="costLab"]')?.value || '';
+      _variants[i].costPackaging = row.querySelector('[data-f="costPkg"]')?.value || '';
+    }
   });
 }
 
@@ -5509,11 +5888,14 @@ function _buildVariantTable() {
 
   const tbl = document.createElement('table');
   tbl.className = 'variant-table';
+  const costCols = !_sharedCostMode
+    ? '<th>Material $</th><th>Labor $</th><th>Packaging $</th>'
+    : '';
   tbl.innerHTML = `
     <thead>
       <tr>
         <th>Size</th><th>Color</th><th>Weight (g)</th>
-        <th>Stock *</th><th>Active</th><th>SKU</th><th></th>
+        <th>Stock *</th><th>Active</th>${costCols}<th>SKU</th><th></th>
       </tr>
     </thead>
     <tbody id="vt-body"></tbody>`;
@@ -5523,12 +5905,17 @@ function _buildVariantTable() {
   _variants.forEach((v, i) => {
     const tr = document.createElement('tr');
     tr.dataset.variantIdx = i;
+    const costInputs = !_sharedCostMode ? `
+      <td><input class="variant-input" type="number" data-f="costMat" min="0" step="0.01" value="${v.costMaterial||''}" placeholder="0.00" style="width:80px"></td>
+      <td><input class="variant-input" type="number" data-f="costLab" min="0" step="0.01" value="${v.costLabor||''}"    placeholder="0.00" style="width:80px"></td>
+      <td><input class="variant-input" type="number" data-f="costPkg" min="0" step="0.01" value="${v.costPackaging||''}" placeholder="0.00" style="width:80px"></td>` : '';
     tr.innerHTML = `
       <td><input class="variant-input" type="text"   data-f="size"   maxlength="20" value="${esc(v.size||'')}"  placeholder="e.g. 7.5"></td>
       <td><input class="variant-input" type="text"   data-f="color"  maxlength="30" value="${esc(v.color||'')}" placeholder="e.g. Gold"></td>
       <td><input class="variant-input" type="number" data-f="weight" min="0" step="0.1" value="${v.weight||''}" placeholder="g" style="width:72px"></td>
       <td><input class="variant-input" type="number" data-f="stock"  min="0" step="1"   value="${v.stockCount??0}" style="width:72px"></td>
       <td style="text-align:center"><input type="checkbox" data-f="active"${v.isActive!==false?' checked':''}></td>
+      ${costInputs}
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${esc(v.sku||'—')}</td>
       <td>${_variants.length > 1 ? `<button class="btn btn--ghost btn--sm" data-rm="${i}" title="Remove">✕</button>` : ''}</td>`;
     tbody.appendChild(tr);
@@ -5774,6 +6161,7 @@ export async function render(container, navigate, params = {}) {
   _activeTab         = 0;
   _pendingBlobs      = {};
   _deletedVariantIds = [];
+  _sharedCostMode    = true;
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text-muted)">
@@ -5867,20 +6255,13 @@ DOSYA: src/panels/manufacturer/product-view.js
 ======================================================================
 
 import DB                              from '../../core/db.js';
-import { statusBadge, formatCurrency, formatDate } from '../../shared/utils/index.js';
+import { statusBadge, formatCurrency, formatDate, esc } from '../../shared/utils/index.js';
+import { transition }                  from '../../modules/workflow/index.js';
+import { getCurrentUser }              from '../../modules/auth/index.js';
 
-const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN', 'REVISION_REQUESTED_BY_SALES']);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function field(label, value) {
   if (!value && value !== 0) return '';
@@ -5929,6 +6310,13 @@ function _renderAlert(product) {
     return `
       <div class="alert alert--warning" style="margin-bottom:20px">
         <strong>Revision requested by Admin:</strong>
+        <p style="margin-top:6px;white-space:pre-wrap">${esc(product.revisionNotes)}</p>
+      </div>`;
+  }
+  if (product.status === 'REVISION_REQUESTED_BY_SALES' && product.revisionNotes) {
+    return `
+      <div class="alert alert--warning" style="margin-bottom:20px">
+        <strong>Revision requested by Sales:</strong>
         <p style="margin-top:6px;white-space:pre-wrap">${esc(product.revisionNotes)}</p>
       </div>`;
   }
@@ -6125,10 +6513,30 @@ export async function render(container, navigate, params = {}) {
 
   if (canEdit) {
     const editBtn = document.createElement('button');
-    editBtn.className   = 'btn btn--primary btn--sm';
+    editBtn.className   = 'btn btn--secondary btn--sm';
     editBtn.textContent = 'Edit Product';
     editBtn.addEventListener('click', () => navigate('products/edit', { id: product.id }));
     topbar.appendChild(editBtn);
+  }
+
+  if (product.status === 'REVISION_REQUESTED_BY_SALES') {
+    const resubmitBtn = document.createElement('button');
+    resubmitBtn.className   = 'btn btn--primary btn--sm';
+    resubmitBtn.textContent = 'Resubmit to Admin';
+    resubmitBtn.addEventListener('click', async () => {
+      resubmitBtn.disabled    = true;
+      resubmitBtn.textContent = 'Submitting…';
+      try {
+        const user = getCurrentUser();
+        await transition(product.id, 'PENDING_ADMIN', user.userId);
+        navigate('dashboard');
+      } catch (err) {
+        alert(`Resubmit failed: ${err.message}`);
+        resubmitBtn.disabled    = false;
+        resubmitBtn.textContent = 'Resubmit to Admin';
+      }
+    });
+    topbar.appendChild(resubmitBtn);
   }
 
   viewPage.appendChild(topbar);
@@ -6156,18 +6564,11 @@ export async function render(container, navigate, params = {}) {
 DOSYA: src/panels/sales/campaign-form.js
 ======================================================================
 
-import DB                               from '../../core/db.js';
-import { getCurrentUser }              from '../../modules/auth/index.js';
-import { generateUUID, formatCurrency } from '../../shared/utils/index.js';
+import DB                                     from '../../core/db.js';
+import { getCurrentUser }                    from '../../modules/auth/index.js';
+import { generateUUID, formatCurrency, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function labelRow(id, label, inputEl, required = false, hint = '') {
   const wrap = document.createElement('div');
@@ -6476,16 +6877,9 @@ DOSYA: src/panels/sales/dashboard.js
 ======================================================================
 
 import DB                                        from '../../core/db.js';
-import { statusBadge, formatRelativeTime }        from '../../shared/utils/index.js';
+import { statusBadge, formatRelativeTime, esc }  from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 
@@ -6790,16 +7184,9 @@ import DB                                        from '../../core/db.js';
 import { calculate, getEffectivePrice }          from '../../core/engine.js';
 import { transition }                            from '../../modules/workflow/index.js';
 import { getCurrentUser }                        from '../../modules/auth/index.js';
-import { statusBadge, formatCurrency, formatDate, formatRelativeTime } from '../../shared/utils/index.js';
+import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 function field(label, value) {
   if (value === '' || value === null || value === undefined) return '';
@@ -6884,17 +7271,42 @@ function _renderHeader(product) {
 }
 
 function _renderProductInfo(product) {
-  const rows = [
-    field('Description', product.productDescription
-      ? `<div style="line-height:1.6">${product.productDescription}</div>` : ''),
-    field('SEO Title',    esc(product.seoTitle   || '')),
-    field('Category',    esc(product.category   || '—')),
-    field('Material',    esc(product.material   || '—')),
-    field('Collection',  esc(product.collection || '')),
-    field('Updated',     formatRelativeTime(product.updatedAt)),
-  ].join('');
+  const section = document.createElement('div');
+  section.className = 'card';
+  section.style.cssText = 'margin-bottom:20px;overflow:hidden';
 
-  return sectionCard('Product Info', rows);
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:10px 20px;background:var(--surface-alt);border-bottom:1px solid var(--border);'
+    + 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)';
+  hdr.textContent = 'Product Info';
+  section.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:4px 20px 12px';
+
+  const descRow = document.createElement('div');
+  descRow.style.cssText = 'display:grid;grid-template-columns:180px 1fr;gap:8px;padding:7px 0;'
+    + 'border-bottom:1px solid var(--border-light);font-size:13px';
+  const descLabel = document.createElement('span');
+  descLabel.style.color = 'var(--text-muted)';
+  descLabel.textContent = 'Description';
+  const descDiv = document.createElement('div');
+  descDiv.style.cssText = 'line-height:1.6;color:var(--text);font-weight:500;word-break:break-word';
+  descDiv.innerHTML = product.productDescription || '—';
+  descRow.appendChild(descLabel);
+  descRow.appendChild(descDiv);
+  body.appendChild(descRow);
+
+  body.insertAdjacentHTML('beforeend', [
+    field('SEO Title',   esc(product.seoTitle   || '')),
+    field('Category',   esc(product.category   || '—')),
+    field('Material',   esc(product.material   || '—')),
+    field('Collection', esc(product.collection || '')),
+    field('Updated',    formatRelativeTime(product.updatedAt)),
+  ].join(''));
+
+  section.appendChild(body);
+  return section;
 }
 
 function _renderVariants(variants) {
@@ -7045,13 +7457,13 @@ function _collectPricing() {
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
 function _buildActionBar(pageEl, product, navigate, returnTo) {
-  const isPending = product.status === 'PENDING_SALES';
+  const isSalesPending = product.status === 'PENDING_SALES';
 
   const bar = document.createElement('div');
   bar.style.cssText = 'position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);'
     + 'padding:14px 28px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;z-index:10';
 
-  if (!isPending) {
+  if (!isSalesPending) {
     const note = document.createElement('p');
     note.style.cssText = 'font-size:13px;color:var(--text-muted);margin:0';
     note.textContent = `This product is ${product.status} — no actions available.`;
@@ -7174,6 +7586,7 @@ function _buildActionBar(pageEl, product, navigate, returnTo) {
       }
       navigate(returnTo);
     } catch (err) {
+      console.error(`[Sales Action] ${_pendingAction} failed:`, err);
       alert(`Action failed: ${err.message}`);
       btn.disabled = false;
       btn.textContent = _pendingAction === 'revision' ? 'Send Revision Request' : 'Confirm Reject';
@@ -7246,9 +7659,9 @@ export async function render(container, navigate, params = {}) {
       </div>`;
   }
 
-  content.innerHTML += _renderHeader(product);
-  content.innerHTML += _renderProductInfo(product);
-  content.innerHTML += _renderVariants(variants);
+  content.insertAdjacentHTML('beforeend', _renderHeader(product));
+  content.appendChild(_renderProductInfo(product));
+  content.insertAdjacentHTML('beforeend', _renderVariants(variants));
 
   pageEl.appendChild(content);
 
@@ -7267,16 +7680,9 @@ DOSYA: src/panels/sales/product-queue.js
 ======================================================================
 
 import DB                                              from '../../core/db.js';
-import { statusBadge, formatRelativeTime, formatCurrency } from '../../shared/utils/index.js';
+import { statusBadge, formatRelativeTime, formatCurrency, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 // ─── Render ────────────────────────────────────────────────────────────────────
 
@@ -7444,16 +7850,11 @@ DOSYA: src/panels/super-admin/dashboard.js
 ======================================================================
 
 import DB                                        from '../../core/db.js';
-import { statusBadge, formatRelativeTime }        from '../../shared/utils/index.js';
+import { statusBadge, formatRelativeTime, esc }  from '../../shared/utils/index.js';
+import { toShopifyCSV, toJSONFeed,
+         downloadCSV, downloadJSON }             from '../../modules/export/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 const STATUS_ORDER = [
   'DRAFT', 'PENDING_ADMIN', 'REVISION_REQUESTED_BY_ADMIN',
@@ -7587,45 +7988,108 @@ export async function render(container, navigate) {
         <div class="empty-state__title">No products yet</div>
         <div class="empty-state__desc">Products will appear here once created.</div>
       </div>`;
-    activitySection.appendChild(actCard);
-    container.appendChild(activitySection);
-    return;
+  } else {
+    const table = document.createElement('table');
+    table.className = 'products-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody></tbody>`;
+
+    const tbody = table.querySelector('tbody');
+
+    for (const p of data.recentProducts) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="product-name">
+            ${esc(p.name || 'Untitled')}
+            <small>${esc(p.sku || '—')}</small>
+          </div>
+        </td>
+        <td>${esc(p.category || '—')}</td>
+        <td></td>
+        <td style="color:var(--text-muted);font-size:12px">${formatRelativeTime(p.updatedAt)}</td>`;
+      tr.querySelector('td:nth-child(3)').appendChild(statusBadge(p.status));
+      tbody.appendChild(tr);
+    }
+
+    actCard.appendChild(table);
   }
 
-  const table = document.createElement('table');
-  table.className = 'products-table';
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Product</th>
-        <th>Category</th>
-        <th>Status</th>
-        <th>Updated</th>
-      </tr>
-    </thead>
-    <tbody></tbody>`;
-
-  const tbody = table.querySelector('tbody');
-
-  for (const p of data.recentProducts) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>
-        <div class="product-name">
-          ${esc(p.name || 'Untitled')}
-          <small>${esc(p.sku || '—')}</small>
-        </div>
-      </td>
-      <td>${esc(p.category || '—')}</td>
-      <td></td>
-      <td style="color:var(--text-muted);font-size:12px">${formatRelativeTime(p.updatedAt)}</td>`;
-    tr.querySelector('td:nth-child(3)').appendChild(statusBadge(p.status));
-    tbody.appendChild(tr);
-  }
-
-  actCard.appendChild(table);
   activitySection.appendChild(actCard);
   container.appendChild(activitySection);
+
+  // ── Export section ────────────────────────────────────────────────────────
+  const exportCount = data.byStatus['READY_FOR_ECOMMERCE'] ?? 0;
+
+  const exportSection = document.createElement('div');
+  exportSection.className = 'section';
+
+  const eHdr = document.createElement('div');
+  eHdr.className = 'section-header';
+  eHdr.innerHTML = `<span class="section-title">Export</span>`;
+  exportSection.appendChild(eHdr);
+
+  const exportCard = document.createElement('div');
+  exportCard.className = 'card';
+  exportCard.style.cssText = 'padding:20px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap';
+
+  const countLabel = document.createElement('span');
+  countLabel.style.cssText = 'font-size:13px;color:var(--text-muted);flex:1;min-width:200px';
+  countLabel.textContent = `${exportCount} product${exportCount !== 1 ? 's' : ''} ready for export (READY_FOR_ECOMMERCE)`;
+  exportCard.appendChild(countLabel);
+
+  const csvBtn = document.createElement('button');
+  csvBtn.className   = 'btn btn--primary btn--sm';
+  csvBtn.textContent = 'Export Shopify CSV';
+  csvBtn.addEventListener('click', async () => {
+    csvBtn.disabled    = true;
+    csvBtn.textContent = 'Exporting…';
+    try {
+      const [products, variants] = await Promise.all([
+        DB.getAll('products'),
+        DB.getAll('variants'),
+      ]);
+      const csv = toShopifyCSV(products || [], variants || []);
+      const date = new Date().toISOString().slice(0, 10);
+      downloadCSV(`tugu-shopify-${date}.csv`, csv);
+    } finally {
+      csvBtn.disabled    = false;
+      csvBtn.textContent = 'Export Shopify CSV';
+    }
+  });
+  exportCard.appendChild(csvBtn);
+
+  const jsonBtn = document.createElement('button');
+  jsonBtn.className   = 'btn btn--secondary btn--sm';
+  jsonBtn.textContent = 'Export JSON Feed';
+  jsonBtn.addEventListener('click', async () => {
+    jsonBtn.disabled    = true;
+    jsonBtn.textContent = 'Exporting…';
+    try {
+      const [products, variants] = await Promise.all([
+        DB.getAll('products'),
+        DB.getAll('variants'),
+      ]);
+      const feed = toJSONFeed(products || [], variants || []);
+      const date = new Date().toISOString().slice(0, 10);
+      downloadJSON(`tugu-feed-${date}.json`, feed);
+    } finally {
+      jsonBtn.disabled    = false;
+      jsonBtn.textContent = 'Export JSON Feed';
+    }
+  });
+  exportCard.appendChild(jsonBtn);
+
+  exportSection.appendChild(exportCard);
+  container.appendChild(exportSection);
 }
 
 
@@ -7765,16 +8229,9 @@ DOSYA: src/panels/super-admin/override.js
 import DB                              from '../../core/db.js';
 import { transition }                  from '../../modules/workflow/index.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
-import { statusBadge, formatRelativeTime } from '../../shared/utils/index.js';
+import { statusBadge, formatRelativeTime, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 const ALL_STATUSES = [
   'DRAFT', 'PENDING_ADMIN', 'REVISION_REQUESTED_BY_ADMIN',
@@ -8040,16 +8497,9 @@ DOSYA: src/panels/super-admin/user-management.js
 
 import DB                               from '../../core/db.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
-import { generateUUID, formatDate }    from '../../shared/utils/index.js';
+import { generateUUID, formatDate, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 const ROLES = ['MANUFACTURER', 'ADMIN', 'SALES', 'SUPER_ADMIN'];
 
@@ -9283,6 +9733,20 @@ export function statusBadge(status) {
   return span;
 }
 
+/**
+ * Escape HTML special characters to prevent XSS when interpolating
+ * into innerHTML (Section 19 Rec 1).
+ */
+export function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 
 ======================================================================
 DOSYA: src/shared/utils/panel-shell.js
@@ -9626,7 +10090,7 @@ DOSYA: test/e2e.test.js
 
 import DB                              from '../src/core/db.js';
 import * as Auth                       from '../src/modules/auth/index.js';
-import { transition }                  from '../src/modules/workflow/index.js';
+import { transition, ALLOWED_TRANSITIONS } from '../src/modules/workflow/index.js';
 import { generateUUID }                from '../src/shared/utils/index.js';
 import { generateProductSKU }          from '../src/modules/product/sku.js';
 import { calculate }                   from '../src/core/engine.js';
@@ -9944,6 +10408,94 @@ async function testStep5_RevisionFlow() {
   console.groupEnd();
 }
 
+async function testStep6_SalesRevisionLoop() {
+  console.group('6. Sales revision loop: PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_ADMIN → PENDING_SALES → READY_FOR_ECOMMERCE');
+
+  const productId = generateUUID();
+  const sku       = await generateProductSKU('Earring', 'Silver');
+  const product   = makeProduct(productId, sku);
+
+  // Set up: manufacturer submits, admin sets costs and approves
+  await Auth.setCurrentUser(MFR_USER);
+  await DB.add('products', product);
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  await Auth.setCurrentUser(ADMIN_USER);
+  const costs = {
+    adminTaxPct: 10, adminMarginPct: 35,
+    adminLogisticsCost: 3.00, adminMarketingCost: 1.50, adminMiscCost: 0.50,
+  };
+  const { transferPrice } = calculate({ ...product, ...costs });
+  await DB.patch('products', productId, {
+    ...costs, transferPrice,
+    sellingPrice: 99.00,
+    updatedBy: ADMIN_USER.userId, updatedAt: Date.now(),
+  });
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+
+  const atSales = await DB.get('products', productId);
+  assert('Product reaches PENDING_SALES', atSales?.status === 'PENDING_SALES', atSales?.status);
+
+  // 1. ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES routes through PENDING_ADMIN (not directly back to PENDING_SALES)
+  assert('ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES → PENDING_ADMIN is legal',
+    ALLOWED_TRANSITIONS['REVISION_REQUESTED_BY_SALES']?.includes('PENDING_ADMIN'));
+  assert('ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES → PENDING_SALES is NOT in map',
+    !ALLOWED_TRANSITIONS['REVISION_REQUESTED_BY_SALES']?.includes('PENDING_SALES'));
+
+  // 2. Sales requests revision — notes are required
+  await Auth.setCurrentUser(SALES_USER);
+  await assertRejects(
+    'REVISION_REQUESTED_BY_SALES requires notes',
+    () => transition(productId, 'REVISION_REQUESTED_BY_SALES', SALES_USER.userId, '')
+  );
+
+  await transition(productId, 'REVISION_REQUESTED_BY_SALES', SALES_USER.userId,
+    'Please add lifestyle images and update the product description.');
+
+  const salesRevised = await DB.get('products', productId);
+  assert('Status is REVISION_REQUESTED_BY_SALES after Sales requests revision',
+    salesRevised?.status === 'REVISION_REQUESTED_BY_SALES', salesRevised?.status);
+  assert('revisionNotes contains Sales feedback',
+    salesRevised?.revisionNotes?.includes('lifestyle images'), salesRevised?.revisionNotes);
+
+  // 3. MANUFACTURER cannot send directly to PENDING_SALES (must go through PENDING_ADMIN)
+  await Auth.setCurrentUser(MFR_USER);
+  await assertRejects(
+    'MANUFACTURER cannot transition REVISION_REQUESTED_BY_SALES → PENDING_SALES',
+    () => transition(productId, 'PENDING_SALES', MFR_USER.userId)
+  );
+
+  // 4. Manufacturer resubmits to PENDING_ADMIN
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  const resubmitted = await DB.get('products', productId);
+  assert('Status is PENDING_ADMIN after manufacturer resubmits',
+    resubmitted?.status === 'PENDING_ADMIN', resubmitted?.status);
+  assert('revisionNotes cleared after manufacturer resubmit',
+    resubmitted?.revisionNotes === null, String(resubmitted?.revisionNotes));
+
+  // 5. Admin re-approves to PENDING_SALES
+  await Auth.setCurrentUser(ADMIN_USER);
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+
+  const backAtSales = await DB.get('products', productId);
+  assert('Status back to PENDING_SALES after admin re-approves',
+    backAtSales?.status === 'PENDING_SALES', backAtSales?.status);
+
+  // 6. Sales can now approve to READY_FOR_ECOMMERCE
+  await Auth.setCurrentUser(SALES_USER);
+  await transition(productId, 'READY_FOR_ECOMMERCE', SALES_USER.userId);
+
+  const ready = await DB.get('products', productId);
+  assert('Product reaches READY_FOR_ECOMMERCE after full Sales revision loop',
+    ready?.status === 'READY_FOR_ECOMMERCE', ready?.status);
+
+  // Cleanup
+  try { await DB.delete('products', productId); } catch {}
+
+  console.groupEnd();
+}
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 
 async function cleanup(productId) {
@@ -9972,6 +10524,7 @@ async function run() {
     await new Promise(r => setTimeout(r, 100));
     await testStep4_AuditLog(productId);
     await testStep5_RevisionFlow();
+    await testStep6_SalesRevisionLoop();
   } finally {
     await cleanup(productId);
     // Restore whatever user was active before the test
@@ -9996,4 +10549,254 @@ async function run() {
 run().catch(err => {
   console.error('[e2e] Test runner crashed:', err);
 });
+
+
+======================================================================
+DOSYA: test/engine.test.js
+======================================================================
+
+/**
+ * TuguPIM — Engine Unit Tests
+ *
+ * Run from the browser console:
+ *   import('/test/engine.test.js')
+ */
+
+import { calculate, getEffectivePrice } from '../src/core/engine.js';
+
+let _passed = 0;
+let _failed = 0;
+
+function assert(label, condition, detail = '') {
+  if (condition) {
+    console.log(`  ✅ PASS  ${label}`);
+    _passed++;
+  } else {
+    console.error(`  ❌ FAIL  ${label}${detail ? `  (${detail})` : ''}`);
+    _failed++;
+  }
+}
+
+function testCostBase() {
+  console.group('1. Cost Base Calculation');
+
+  const p1 = { costMaterial: 10, costLabor: 5, costPackaging: 2.5 };
+  const res1 = calculate(p1);
+  assert('Sum of material, labor, and packaging', res1.costBase === 17.5, res1.costBase);
+
+  const p2 = { costMaterial: '10.50', costLabor: '5.25' };
+  const res2 = calculate(p2);
+  assert('Handles numeric strings and missing fields', res2.costBase === 15.75, res2.costBase);
+
+  const p3 = {};
+  const res3 = calculate(p3);
+  assert('Handles empty object (defaults to 0)', res3.costBase === 0, res3.costBase);
+
+  console.groupEnd();
+}
+
+function testTransferPrice() {
+  console.group('2. Transfer Price Calculation');
+
+  const p1 = {
+    costMaterial: 10, costLabor: 5, costPackaging: 5, // base = 20
+    adminTaxPct: 10,        // 20 * 1.1 = 22
+    adminLogisticsCost: 2,  // 22 + 2 = 24
+    adminMarketingCost: 3,  // 24 + 3 = 27
+    adminMiscCost: 1,       // 27 + 1 = 28
+    adminMarginPct: 50,     // 28 * 1.5 = 42
+  };
+  const res1 = calculate(p1);
+  assert('Full admin layer pipeline', res1.transferPrice === 42, res1.transferPrice);
+
+  const p2 = { costMaterial: 10, adminMarginPct: null };
+  const res2 = calculate(p2);
+  assert('Returns null if adminMarginPct is missing', res2.transferPrice === null, res2.transferPrice);
+
+  const p3 = { costMaterial: 10, adminMarginPct: 0 };
+  const res3 = calculate(p3);
+  assert('Works with 0% margin', res3.transferPrice === 10, res3.transferPrice);
+
+  console.groupEnd();
+}
+
+function testEffectivePrice() {
+  console.group('3. Effective Price (Campaigns)');
+
+  const product = { sellingPrice: 100 };
+  const now = Date.now();
+
+  assert('No campaign: returns sellingPrice',
+    getEffectivePrice(product, null) === 100);
+
+  const c1 = { isActive: true, discountType: 'PERCENTAGE', discountValue: 20 };
+  assert('Percentage discount (20%)',
+    getEffectivePrice(product, c1) === 80);
+
+  const c2 = { isActive: true, discountType: 'FIXED', discountValue: 15 };
+  assert('Fixed discount (15)',
+    getEffectivePrice(product, c2) === 85);
+
+  const c3 = { isActive: false, discountType: 'PERCENTAGE', discountValue: 50 };
+  assert('Inactive campaign: ignored',
+    getEffectivePrice(product, c3) === 100);
+
+  const c4 = { isActive: true, discountType: 'FIXED', discountValue: 150 };
+  assert('Discount cannot result in negative price',
+    getEffectivePrice(product, c4) === 0);
+
+  const c5 = { isActive: true, discountType: 'PERCENTAGE', discountValue: 10, startsAt: now + 10000 };
+  assert('Future campaign: ignored',
+    getEffectivePrice(product, c5) === 100);
+
+  const c6 = { isActive: true, discountType: 'PERCENTAGE', discountValue: 10, endsAt: now - 10000 };
+  assert('Expired campaign: ignored',
+    getEffectivePrice(product, c6) === 100);
+
+  console.groupEnd();
+}
+
+async function run() {
+  console.group('%cTuguPIM — Engine Tests', 'font-weight:bold; font-size:14px');
+  testCostBase();
+  testTransferPrice();
+  testEffectivePrice();
+
+  const total = _passed + _failed;
+  console.log('─'.repeat(44));
+  if (_failed === 0) {
+    console.log(`%c✅  All ${total} checks passed`, 'color:#22c55e; font-weight:bold');
+  } else {
+    console.log(`%c❌  ${_failed} of ${total} checks failed`, 'color:#ef4444; font-weight:bold');
+  }
+  console.groupEnd();
+}
+
+run();
+
+
+======================================================================
+DOSYA: test/validator.test.js
+======================================================================
+
+/**
+ * TuguPIM — Validator Unit Tests
+ *
+ * Run from the browser console:
+ *   import('/test/validator.test.js')
+ */
+
+import { validate, PRODUCT_SCHEMA, VARIANT_SCHEMA } from '../src/core/validator.js';
+
+let _passed = 0;
+let _failed = 0;
+
+function assert(label, condition, detail = '') {
+  if (condition) {
+    console.log(`  ✅ PASS  ${label}`);
+    _passed++;
+  } else {
+    console.error(`  ❌ FAIL  ${label}${detail ? `  (${detail})` : ''}`);
+    _failed++;
+  }
+}
+
+function testRequired() {
+  console.group('1. Required Rule');
+
+  const schema = { name: [{ rule: 'required', message: 'Err' }] };
+
+  assert('Passes when value present', validate(schema, { name: 'A' }).valid);
+  assert('Fails when value null',    !validate(schema, { name: null }).valid);
+  assert('Fails when value empty',   !validate(schema, { name: '' }).valid);
+  assert('Fails when key missing',   !validate(schema, {}).valid);
+
+  console.groupEnd();
+}
+
+function testNumericRules() {
+  console.group('2. Numeric Rules (min, max, gt, integer)');
+
+  const schema = {
+    age: [
+      { rule: 'integer', message: 'Must be int' },
+      { rule: 'min', value: 18, message: 'Too young' },
+      { rule: 'max', value: 99, message: 'Too old' }
+    ],
+    price: [
+      { rule: 'gt', value: 0, message: 'Must be positive' }
+    ]
+  };
+
+  assert('Valid integer in range', validate(schema, { age: 25, price: 10 }).valid);
+  assert('Fails non-integer',     !validate(schema, { age: 25.5 }).valid);
+  assert('Fails below min',       !validate(schema, { age: 17 }).valid);
+  assert('Fails above max',       !validate(schema, { age: 100 }).valid);
+  assert('Fails gt 0 (is 0)',     !validate(schema, { price: 0 }).valid);
+  assert('Passes gt 0 (is 0.1)',   validate(schema, { price: 0.1 }).valid);
+
+  console.groupEnd();
+}
+
+function testStringRules() {
+  console.group('3. String Rules (minLength, maxLength)');
+
+  const schema = {
+    code: [
+      { rule: 'minLength', value: 3, message: 'Short' },
+      { rule: 'maxLength', value: 5, message: 'Long' }
+    ]
+  };
+
+  assert('Valid length', validate(schema, { code: 'ABC' }).valid);
+  assert('Too short',    !validate(schema, { code: 'AB' }).valid);
+  assert('Too long',     !validate(schema, { code: 'ABCDEF' }).valid);
+
+  console.groupEnd();
+}
+
+function testProductSchema() {
+  console.group('4. Product Schema (Real Data)');
+
+  const validProduct = {
+    name: 'Test Ring',
+    category: 'Ring',
+    material: 'Gold',
+    seoTitle: 'Valid SEO Title',
+    seoDescription: 'A description of the product for search engines.',
+    marketingDescription: 'This is a long enough marketing description to pass the fifty character limit.',
+    productDescription: 'This is an even longer product description that should easily pass the one hundred character minimum length requirement.',
+    images: ['img1.jpg']
+  };
+
+  const res = validate(PRODUCT_SCHEMA, validProduct);
+  assert('Valid product passes', res.valid, JSON.stringify(res.errors));
+
+  const invalidProduct = { ...validProduct, name: 'A', category: 'Invalid' };
+  const res2 = validate(PRODUCT_SCHEMA, invalidProduct);
+  assert('Invalid name and category fails', !res2.valid);
+  assert('Error for name length', res2.errors.name.length > 0);
+  assert('Error for category enum', res2.errors.category.length > 0);
+
+  console.groupEnd();
+}
+
+async function run() {
+  console.group('%cTuguPIM — Validator Tests', 'font-weight:bold; font-size:14px');
+  testRequired();
+  testNumericRules();
+  testStringRules();
+  testProductSchema();
+
+  const total = _passed + _failed;
+  console.log('─'.repeat(44));
+  if (_failed === 0) {
+    console.log(`%c✅  All ${total} checks passed`, 'color:#22c55e; font-weight:bold');
+  } else {
+    console.log(`%c❌  ${_failed} of ${total} checks failed`, 'color:#ef4444; font-weight:bold');
+  }
+  console.groupEnd();
+}
+
+run();
 

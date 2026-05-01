@@ -422,12 +422,134 @@ async function testStep6_SalesRevisionLoop() {
   console.groupEnd();
 }
 
+async function testStep7_PermissionEnforcement(productId) {
+  console.group('7. Permission Enforcement: verify role boundaries');
+
+  // Act as SALES
+  await Auth.setCurrentUser(SALES_USER);
+
+  // 1. Sales cannot edit Manufacturer fields (e.g. costMaterial)
+  const pBefore = await DB.get('products', productId);
+  const originalCost = pBefore.costMaterial;
+  
+  const State = await import('../src/core/state.js');
+  State.registerAuth(Auth);
+  State.load(pBefore);
+  
+  State.set('costMaterial', 999.99, SALES_USER.userId);
+  const pAfter = await DB.get('products', productId);
+  assert('SALES cannot edit costMaterial (Manufacturer field)',
+    pAfter.costMaterial === originalCost, `Value changed to ${pAfter.costMaterial}`);
+
+  // 2. Sales cannot trigger ADMIN transitions (PENDING_ADMIN -> PENDING_SALES)
+  const adminTestId = generateUUID();
+  await DB.add('products', { ...pBefore, id: adminTestId, status: 'PENDING_ADMIN' });
+  
+  await assertRejects(
+    'SALES cannot trigger ADMIN transition (PENDING_ADMIN → PENDING_SALES)',
+    () => transition(adminTestId, 'PENDING_SALES', SALES_USER.userId)
+  );
+
+  // 3. MANUFACTURER cannot skip ADMIN (DRAFT → PENDING_SALES)
+  await Auth.setCurrentUser(MFR_USER);
+  const mfrTestId = generateUUID();
+  await DB.add('products', { ...pBefore, id: mfrTestId, status: 'DRAFT' });
+
+  await assertRejects(
+    'MANUFACTURER cannot skip ADMIN (DRAFT → PENDING_SALES)',
+    () => transition(mfrTestId, 'PENDING_SALES', MFR_USER.userId)
+  );
+
+  // 4. ADMIN must act as bridge (PENDING_ADMIN → READY_FOR_ECOMMERCE is illegal)
+  await Auth.setCurrentUser(ADMIN_USER);
+  await assertRejects(
+    'ADMIN cannot skip SALES (PENDING_ADMIN → READY_FOR_ECOMMERCE)',
+    () => transition(adminTestId, 'READY_FOR_ECOMMERCE', ADMIN_USER.userId)
+  );
+
+  // Cleanup
+  await DB.delete('products', adminTestId);
+  await DB.delete('products', mfrTestId);
+
+  console.groupEnd();
+}
+
+async function testStep8_DynamicOverrides() {
+  console.group('8. Dynamic Overrides: Super Admin authority');
+
+  const productId = generateUUID();
+  const sku = 'E2E-OVR-001';
+  await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_ADMIN' });
+
+  // 1. Super Admin disables Admin approve transition
+  const SUPER_USER = { userId: 'e2e-super-001', role: 'SUPER_ADMIN' };
+  await Auth.setCurrentUser(SUPER_USER);
+  
+  // Transition we will block: ADMIN:PENDING_ADMIN:PENDING_SALES
+  await Auth.setOverride('transitions', 'ADMIN:PENDING_ADMIN:PENDING_SALES', false);
+
+  // 2. Admin attempt to approve should now fail
+  await Auth.setCurrentUser(ADMIN_USER);
+  await assertRejects(
+    'ADMIN approve fails after Super Admin dynamic override (disable)',
+    () => transition(productId, 'PENDING_SALES', ADMIN_USER.userId)
+  );
+
+  // 3. Super Admin re-enables transition
+  await Auth.setCurrentUser(SUPER_USER);
+  await Auth.setOverride('transitions', 'ADMIN:PENDING_ADMIN:PENDING_SALES', true);
+
+  // 4. Admin attempt to approve should now succeed
+  await Auth.setCurrentUser(ADMIN_USER);
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+  const pAfter = await DB.get('products', productId);
+  assert('ADMIN approve succeeds after Super Admin dynamic override (enable)',
+    pAfter.status === 'PENDING_SALES');
+
+  // 5. Super Admin can override ANY status (even terminal/illegal)
+  await Auth.setCurrentUser(SUPER_USER);
+  // PENDING_SALES -> DRAFT (Normally illegal in map)
+  await transition(productId, 'DRAFT', SUPER_USER.userId);
+  const pFinal = await DB.get('products', productId);
+  assert('SUPER_ADMIN can bypass workflow map (PENDING_SALES → DRAFT)',
+    pFinal.status === 'DRAFT');
+
+  // Cleanup
+  await DB.delete('products', productId);
+  // Reset overrides for other tests
+  await DB.delete('settings', 'permissionOverrides');
+
+  console.groupEnd();
+}
+
+async function testStep9_ViolationLogging() {
+  console.group('9. Violation Logging: verify blocked attempts are recorded');
+
+  const productId = generateUUID();
+  await DB.add('products', { ...makeProduct(productId, 'E2E-LOG-001'), status: 'PENDING_SALES' });
+
+  // MANUFACTURER attempts to approve PENDING_SALES
+  await Auth.setCurrentUser(MFR_USER);
+  try { await transition(productId, 'READY_FOR_ECOMMERCE', MFR_USER.userId); } catch {}
+
+  // Verify audit log
+  await new Promise(r => setTimeout(r, 100));
+  const logs = await DB.getAll('auditLog');
+  const violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER');
+  
+  assert('Permission violation is logged in audit log', !!violation);
+  assert('Violation notes contains transition info', violation?.notes?.includes('TRANSITION:PENDING_SALES:READY_FOR_ECOMMERCE'));
+
+  await DB.delete('products', productId);
+  console.groupEnd();
+}
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 
 async function cleanup(productId) {
   try { await DB.delete('products', productId); } catch {}
-  // Audit log entries can't easily be deleted by productId (autoIncrement keys),
-  // but they're harmless to leave as they use test-specific IDs.
+  // Reset settings
+  try { await DB.delete('settings', 'permissionOverrides'); } catch {}
 }
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
@@ -451,6 +573,9 @@ async function run() {
     await testStep4_AuditLog(productId);
     await testStep5_RevisionFlow();
     await testStep6_SalesRevisionLoop();
+    await testStep7_PermissionEnforcement(productId);
+    await testStep8_DynamicOverrides();
+    await testStep9_ViolationLogging();
   } finally {
     await cleanup(productId);
     // Restore whatever user was active before the test

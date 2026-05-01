@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(New-Item -Path \"c:\\\\Users\\\\kaano\\\\Desktop\\\\craft\\\\jewel_dev_claude\\\\src\\\\panels\\\\manufacturer\\\\product-view.js\" -ItemType File -Force)",
-      "Bash(Out-Null)"
+      "Bash(Out-Null)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)"
     ]
   }
 }
