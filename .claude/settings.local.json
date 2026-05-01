@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(New-Item -Path \"c:\\\\Users\\\\kaano\\\\Desktop\\\\craft\\\\jewel_dev_claude\\\\src\\\\panels\\\\manufacturer\\\\product-view.js\" -ItemType File -Force)",
+      "Bash(Out-Null)"
+    ]
+  }
+}
