@@ -209,6 +209,38 @@ function renderProductsTable(container, products, navigate) {
   container.appendChild(section);
 }
 
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+function renderOnboarding(container, navigate) {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;align-items:center;justify-content:center;'
+    + 'min-height:420px;padding:40px';
+
+  const inner = document.createElement('div');
+  inner.className = 'empty-state';
+  inner.style.cssText = 'max-width:500px;text-align:center';
+  inner.innerHTML = `
+    <div class="empty-state__icon" style="font-size:52px">💎</div>
+    <div class="empty-state__title" style="font-size:22px;margin-bottom:10px">
+      Welcome to TuguJewelry PIM
+    </div>
+    <div class="empty-state__desc" style="margin-bottom:28px;line-height:1.6">
+      Manage your jewelry products from creation to e-commerce.<br>
+      Create your first product — submit it to Admin for review, then to Sales for pricing.
+    </div>
+  `;
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn--primary';
+  btn.style.cssText = 'font-size:15px;padding:12px 32px';
+  btn.textContent = 'Create Product';
+  btn.addEventListener('click', () => navigate('products/new'));
+  inner.appendChild(btn);
+
+  wrapper.appendChild(inner);
+  container.appendChild(wrapper);
+}
+
 // ─── Public render ────────────────────────────────────────────────────────────
 
 export async function render(container, navigate) {
@@ -231,6 +263,12 @@ export async function render(container, navigate) {
   }
 
   container.innerHTML = '';
+
+  if (products.length === 0) {
+    renderOnboarding(container, navigate);
+    return;
+  }
+
   renderStatCards(container, products);
   renderRevisionSection(container, products, navigate);
   renderProductsTable(container, products, navigate);

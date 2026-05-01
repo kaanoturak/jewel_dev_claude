@@ -5,7 +5,14 @@
 - This file tells you where we are and what to do next
 
 ## Current Phase
-✅ ALL PHASES COMPLETE — all known bugs fixed
+✅ ALL PHASES COMPLETE — production-ready for internal use
+
+## System State (as of last session)
+- Full 4-role lifecycle working: MANUFACTURER → ADMIN → SALES → SUPER_ADMIN
+- All workflow transitions enforced by both auth (canTransition) and state machine (ALLOWED_TRANSITIONS)
+- All role panels fully implemented with read/write views, forms, and action bars
+- Test suite: db.test.js (40 checks), e2e.test.js (6 test groups, full lifecycle)
+- No known bugs
 
 ## Completed
 ### Phase 0 — Core
@@ -26,9 +33,9 @@
 - [x] index.html — minimal app shell, links CSS, loads app.js module
 - [x] src/app.js — boot, Auth.init, role-based panel routing, dev role selector
 - [x] src/panels/manufacturer/index.js — panel shell, sidebar nav, internal router
-- [x] src/panels/manufacturer/dashboard.js — stat cards, revision alerts, products table, empty state
+- [x] src/panels/manufacturer/dashboard.js — stat cards, revision alerts, products table, onboarding empty state
 - [x] src/panels/manufacturer/product-form.js — 6-tab form, all spec §5 fields, validate(), transition() on submit
-- [x] src/panels/manufacturer/product-view.js — read-only detail, revision notes, Edit button for DRAFT/REVISION_REQUESTED
+- [x] src/panels/manufacturer/product-view.js — read-only detail, revision notes, Edit + Resubmit buttons
 
 ### Phase 2 — Admin Panel
 - [x] src/panels/admin/index.js — panel shell, nav: Dashboard, Review Queue, All Products, Stock, Audit Log
@@ -55,18 +62,18 @@
 - [x] src/app.js — all 4 panels mounted via dynamic import: MANUFACTURER, ADMIN, SALES, SUPER_ADMIN
 - [x] PROMPT.md — all phases marked complete
 
-### Post-Phase Bug Fixes Applied
-- [x] workflow/index.js — `_validateProductReadiness` no longer blocks REVISION_REQUESTED_BY_SALES → PENDING_SALES
+### Post-Phase Fixes & Improvements
+- [x] workflow/index.js — `_validateProductReadiness` no longer blocks REVISION_REQUESTED_BY_SALES → PENDING_ADMIN
 - [x] manufacturer/product-form.js — per-variant cost fields with shared/per-variant toggle
-- [x] admin/product-detail.js — transfer price preview uses `body.querySelector()` (not `document.getElementById()`); `_collectAdminCosts` takes container param
-- [x] sales/product-detail.js — BUG B FIXED: `descDiv.innerHTML` renders rich HTML; `white-space:pre-wrap` removed
-- [x] admin/product-queue.js — BUG A FIXED: `_fetchProducts` defined, loads PENDING_ADMIN for queue / all products for all-mode
-- [x] manufacturer/dashboard.js + admin/product-queue.js — BUG C FIXED: async blob thumbnails per row; `esc()` added to dashboard imports
-
-### Post-Phase Improvements Applied
-- [x] manufacturer/product-view.js — REVISION_REQUESTED_BY_SALES added to EDITABLE_STATUSES; Sales revision alert shown
-- [x] manufacturer/dashboard.js — REVISION_REQUESTED_BY_SALES in EDITABLE_STATUSES + revision section + stat card counter; N+1 thumbnail query replaced with `queryByIndex('mediaBlobs','productId',p.id)`
-- [x] test/e2e.test.js — testStep6_SalesRevisionLoop: full PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_SALES → READY_FOR_ECOMMERCE loop with role enforcement checks
+- [x] admin/product-detail.js — transfer price preview uses `body.querySelector()` (not `document.getElementById()`)
+- [x] sales/product-detail.js — `descDiv.innerHTML` renders rich HTML; `white-space:pre-wrap` removed
+- [x] admin/product-queue.js — `_fetchProducts` defined, loads PENDING_ADMIN for queue / all products for all-mode
+- [x] manufacturer/dashboard.js + admin/product-queue.js — async blob thumbnails per row; `esc()` XSS protection
+- [x] manufacturer/product-view.js — REVISION_REQUESTED_BY_SALES in EDITABLE_STATUSES; Sales revision alert; "Resubmit to Admin" button
+- [x] manufacturer/dashboard.js — onboarding empty state for first-time users; N+1 thumbnail replaced with queryByIndex
+- [x] modules/auth/index.js — MANUFACTURER_TRANSITIONS: `REVISION_REQUESTED_BY_SALES:PENDING_ADMIN` added; dead ADMIN_TRANSITIONS entry removed
+- [x] modules/workflow/index.js — REVISION_REQUESTED_BY_SALES routes to `['PENDING_ADMIN', 'ARCHIVED']`
+- [x] test/e2e.test.js — testStep6 covers full Sales revision loop through PENDING_ADMIN
 
 ## Next Task — Resume Here
 Nothing remaining. All phases complete and all known issues resolved.
@@ -81,6 +88,22 @@ Nothing remaining. All phases complete and all known issues resolved.
 - Super Admin override: call `transition()` with SUPER_ADMIN user — workflow bypasses ALLOWED_TRANSITIONS for that role
 - Image blobs: store in mediaBlobs store with blobId; MediaObject on product holds metadata only
 - campaign effectivePrice: never stored, always computed at render time via `getEffectivePrice(product, campaign)` from engine.js
+
+## Known Limitations (Phase 6 scope)
+- No real authentication — login screen accepts any credentials; user identity is stored in IndexedDB settings
+- No server-side persistence — all data is in browser IndexedDB, lost on clear/different browser
+- No e-commerce export — READY_FOR_ECOMMERCE status is terminal; no Shopify/WooCommerce push yet
+- No image compression — blobs stored raw; large images may stress IndexedDB on some browsers
+- No pagination — all product queries load full result sets into memory
+- No stock update UI — stock counts visible in Admin Stock view but only editable via direct DB writes
+- No notification system — revision requests are visible only when user actively opens the panel
+
+## What Phase 6 (E-Commerce Integration) Will Need
+- Export adapter: read READY_FOR_ECOMMERCE products + campaigns, format for target platform (Shopify/WooCommerce)
+- Webhook or polling to sync stock levels back from the platform into IndexedDB
+- A new `PUBLISHED` status after READY_FOR_ECOMMERCE (optional — depends on platform integration)
+- Real auth: JWT or session token, server-side user store
+- Optionally: backend API replacing IndexedDB for multi-device / multi-user shared state
 
 ## CSS Classes Already Available (src/shared/styles/index.css)
 Layouts: .panel, .sidebar, .panel-main, .panel-header, .panel-content

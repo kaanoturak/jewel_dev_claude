@@ -46,7 +46,6 @@ const ADMIN_TRANSITIONS = new Set([
   'PENDING_ADMIN:PENDING_SALES',
   'PENDING_ADMIN:REVISION_REQUESTED_BY_ADMIN',
   'PENDING_ADMIN:REJECTED',
-  'REVISION_REQUESTED_BY_SALES:PENDING_SALES',
   // Admin can archive from any status — wildcard handled in canTransition
 ]);
 
