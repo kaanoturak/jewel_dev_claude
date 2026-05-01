@@ -1,7 +1,7 @@
 import DB                              from '../../core/db.js';
 import { statusBadge, formatCurrency, formatDate, esc } from '../../shared/utils/index.js';
 
-const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN', 'REVISION_REQUESTED_BY_SALES']);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +52,13 @@ function _renderAlert(product) {
     return `
       <div class="alert alert--warning" style="margin-bottom:20px">
         <strong>Revision requested by Admin:</strong>
+        <p style="margin-top:6px;white-space:pre-wrap">${esc(product.revisionNotes)}</p>
+      </div>`;
+  }
+  if (product.status === 'REVISION_REQUESTED_BY_SALES' && product.revisionNotes) {
+    return `
+      <div class="alert alert--warning" style="margin-bottom:20px">
+        <strong>Revision requested by Sales:</strong>
         <p style="margin-top:6px;white-space:pre-wrap">${esc(product.revisionNotes)}</p>
       </div>`;
   }

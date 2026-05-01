@@ -3,7 +3,7 @@ import { getCurrentUser }              from '../../modules/auth/index.js';
 import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/utils/index.js';
 
 // Statuses that allow the manufacturer to edit the product
-const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN', 'REVISION_REQUESTED_BY_SALES']);
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
@@ -14,19 +14,15 @@ async function fetchMyProducts() {
 
   // Fetch primary image for each product to show in the table
   for (const p of products) {
-    if (p.images && p.images.length > 0) {
-      const primaryIdx = p.primaryImageIndex ?? 0;
-      const img = p.images[primaryIdx];
-      if (img && img.id) {
-        try {
-          const blobRecord = await DB.get('mediaBlobs', img.id);
-          if (blobRecord && blobRecord.blob) {
-            p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
-          }
-        } catch (err) {
-          console.warn(`Failed to load thumbnail for ${p.id}:`, err);
-        }
-      }
+    const primaryIdx  = p.primaryImageIndex ?? 0;
+    const primaryMeta = p.images?.[primaryIdx];
+    if (!primaryMeta?.id) continue;
+    try {
+      const blobs = await DB.queryByIndex('mediaBlobs', 'productId', p.id);
+      const rec   = (blobs || []).find(b => b.blobId === primaryMeta.id);
+      if (rec?.blob) p.primaryImageUrl = URL.createObjectURL(rec.blob);
+    } catch (err) {
+      console.warn(`Failed to load thumbnail for ${p.id}:`, err);
     }
   }
   return products;
@@ -36,7 +32,9 @@ async function fetchMyProducts() {
 
 function renderStatCards(container, products) {
   const total     = products.length;
-  const revisions = products.filter((p) => p.status === 'REVISION_REQUESTED_BY_ADMIN').length;
+  const revisions = products.filter((p) =>
+    p.status === 'REVISION_REQUESTED_BY_ADMIN' || p.status === 'REVISION_REQUESTED_BY_SALES'
+  ).length;
   const submitted = products.filter((p) => p.status === 'PENDING_ADMIN').length;
 
   const cards = [
@@ -64,7 +62,10 @@ function renderStatCards(container, products) {
 // ─── Revision alerts ──────────────────────────────────────────────────────────
 
 function renderRevisionSection(container, products, navigate) {
-  const revisions = products.filter((p) => p.status === 'REVISION_REQUESTED_BY_ADMIN');
+  const revisions = products.filter((p) =>
+    p.status === 'REVISION_REQUESTED_BY_ADMIN' ||
+    p.status === 'REVISION_REQUESTED_BY_SALES'
+  );
   if (revisions.length === 0) return;
 
   const section = document.createElement('div');
@@ -78,13 +79,15 @@ function renderRevisionSection(container, products, navigate) {
 
   const list = section.querySelector('#revision-list');
   for (const product of revisions) {
+    const byLabel = product.status === 'REVISION_REQUESTED_BY_SALES' ? 'Sales' : 'Admin';
     const row = document.createElement('div');
     row.className = 'revision-item';
     row.innerHTML = `
-      <span class="revision-item__name">${product.name || 'Untitled'}</span>
-      <span class="revision-item__sku">${product.sku || '—'}</span>
+      <span class="revision-item__name">${esc(product.name || 'Untitled')}</span>
+      <span class="revision-item__sku">${esc(product.sku || '—')}</span>
       <span class="revision-item__notes">
-        ${product.revisionNotes ? truncate(product.revisionNotes, 80) : 'No notes provided'}
+        <strong style="font-size:11px;color:var(--text-muted)">${esc(byLabel)}:</strong>
+        ${product.revisionNotes ? esc(truncate(product.revisionNotes, 80)) : 'No notes provided'}
       </span>
     `;
 

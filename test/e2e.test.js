@@ -16,7 +16,7 @@
 
 import DB                              from '../src/core/db.js';
 import * as Auth                       from '../src/modules/auth/index.js';
-import { transition }                  from '../src/modules/workflow/index.js';
+import { transition, ALLOWED_TRANSITIONS } from '../src/modules/workflow/index.js';
 import { generateUUID }                from '../src/shared/utils/index.js';
 import { generateProductSKU }          from '../src/modules/product/sku.js';
 import { calculate }                   from '../src/core/engine.js';
@@ -334,6 +334,85 @@ async function testStep5_RevisionFlow() {
   console.groupEnd();
 }
 
+async function testStep6_SalesRevisionLoop() {
+  console.group('6. Sales revision loop: PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_SALES → READY_FOR_ECOMMERCE');
+
+  const productId = generateUUID();
+  const sku       = await generateProductSKU('Earring', 'Silver');
+  const product   = makeProduct(productId, sku);
+
+  // Set up: manufacturer submits, admin sets costs and approves
+  await Auth.setCurrentUser(MFR_USER);
+  await DB.add('products', product);
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  await Auth.setCurrentUser(ADMIN_USER);
+  const costs = {
+    adminTaxPct: 10, adminMarginPct: 35,
+    adminLogisticsCost: 3.00, adminMarketingCost: 1.50, adminMiscCost: 0.50,
+  };
+  const { transferPrice } = calculate({ ...product, ...costs });
+  await DB.patch('products', productId, {
+    ...costs, transferPrice,
+    sellingPrice: 99.00,
+    updatedBy: ADMIN_USER.userId, updatedAt: Date.now(),
+  });
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+
+  const atSales = await DB.get('products', productId);
+  assert('Product reaches PENDING_SALES', atSales?.status === 'PENDING_SALES', atSales?.status);
+
+  // 1. ALLOWED_TRANSITIONS map includes REVISION_REQUESTED_BY_SALES → PENDING_SALES
+  assert('ALLOWED_TRANSITIONS: REVISION_REQUESTED_BY_SALES → PENDING_SALES is legal',
+    ALLOWED_TRANSITIONS['REVISION_REQUESTED_BY_SALES']?.includes('PENDING_SALES'));
+
+  // 2. Sales requests revision — notes are required
+  await Auth.setCurrentUser(SALES_USER);
+  await assertRejects(
+    'REVISION_REQUESTED_BY_SALES requires notes',
+    () => transition(productId, 'REVISION_REQUESTED_BY_SALES', SALES_USER.userId, '')
+  );
+
+  await transition(productId, 'REVISION_REQUESTED_BY_SALES', SALES_USER.userId,
+    'Please add lifestyle images and update the product description.');
+
+  const salesRevised = await DB.get('products', productId);
+  assert('Status is REVISION_REQUESTED_BY_SALES after Sales requests revision',
+    salesRevised?.status === 'REVISION_REQUESTED_BY_SALES', salesRevised?.status);
+  assert('revisionNotes contains Sales feedback',
+    salesRevised?.revisionNotes?.includes('lifestyle images'), salesRevised?.revisionNotes);
+
+  // 3. MANUFACTURER cannot transition from REVISION_REQUESTED_BY_SALES
+  await Auth.setCurrentUser(MFR_USER);
+  await assertRejects(
+    'MANUFACTURER cannot transition REVISION_REQUESTED_BY_SALES → PENDING_SALES',
+    () => transition(productId, 'PENDING_SALES', MFR_USER.userId)
+  );
+
+  // 4. Admin routes product back to PENDING_SALES
+  await Auth.setCurrentUser(ADMIN_USER);
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+
+  const backAtSales = await DB.get('products', productId);
+  assert('Status back to PENDING_SALES after admin re-routes',
+    backAtSales?.status === 'PENDING_SALES', backAtSales?.status);
+  assert('revisionNotes cleared when admin routes back to PENDING_SALES',
+    backAtSales?.revisionNotes === null, String(backAtSales?.revisionNotes));
+
+  // 5. Sales can now approve to READY_FOR_ECOMMERCE
+  await Auth.setCurrentUser(SALES_USER);
+  await transition(productId, 'READY_FOR_ECOMMERCE', SALES_USER.userId);
+
+  const ready = await DB.get('products', productId);
+  assert('Product reaches READY_FOR_ECOMMERCE after full Sales revision loop',
+    ready?.status === 'READY_FOR_ECOMMERCE', ready?.status);
+
+  // Cleanup
+  try { await DB.delete('products', productId); } catch {}
+
+  console.groupEnd();
+}
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 
 async function cleanup(productId) {
@@ -362,6 +441,7 @@ async function run() {
     await new Promise(r => setTimeout(r, 100));
     await testStep4_AuditLog(productId);
     await testStep5_RevisionFlow();
+    await testStep6_SalesRevisionLoop();
   } finally {
     await cleanup(productId);
     // Restore whatever user was active before the test
