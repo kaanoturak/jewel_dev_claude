@@ -10,7 +10,26 @@ const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
 async function fetchMyProducts() {
   const user = getCurrentUser();
   if (!user) return [];
-  return DB.queryByIndex('products', 'createdBy', user.userId);
+  const products = await DB.queryByIndex('products', 'createdBy', user.userId);
+
+  // Fetch primary image for each product to show in the table
+  for (const p of products) {
+    if (p.images && p.images.length > 0) {
+      const primaryIdx = p.primaryImageIndex ?? 0;
+      const img = p.images[primaryIdx];
+      if (img && img.id) {
+        try {
+          const blobRecord = await DB.get('mediaBlobs', img.id);
+          if (blobRecord && blobRecord.blob) {
+            p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
+          }
+        } catch (err) {
+          console.warn(`Failed to load thumbnail for ${p.id}:`, err);
+        }
+      }
+    }
+  }
+  return products;
 }
 
 // ─── Stat cards ───────────────────────────────────────────────────────────────
@@ -132,10 +151,17 @@ function renderProductsTable(container, products, navigate) {
 
     // Product name + SKU cell
     const nameTd = document.createElement('td');
+    const thumbHTML = product.primaryImageUrl
+      ? `<img src="${product.primaryImageUrl}" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
+      : `<div style="width:32px;height:32px;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:0.3">💎</div>`;
+
     nameTd.innerHTML = `
-      <div class="product-name">
-        ${product.name || 'Untitled'}
-        <small>${product.sku || '—'}</small>
+      <div class="product-name" style="display:flex;align-items:center;gap:10px">
+        ${thumbHTML}
+        <div>
+          ${product.name || 'Untitled'}
+          <small>${product.sku || '—'}</small>
+        </div>
       </div>`;
 
     // Category

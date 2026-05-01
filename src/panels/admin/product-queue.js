@@ -3,6 +3,34 @@ import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/uti
 
 // ─── Data fetching ─────────────────────────────────────────────────────────────
 
+async function _fetchProducts(mode) {
+  let products;
+  if (mode === 'queue') {
+    products = await DB.queryByIndex('products', 'status', 'PENDING_ADMIN');
+  } else {
+    products = await DB.getAll('products');
+  }
+
+  // Fetch primary image for each product
+  for (const p of products) {
+    if (p.images && p.images.length > 0) {
+      const primaryIdx = p.primaryImageIndex ?? 0;
+      const img = p.images[primaryIdx];
+      if (img && img.id) {
+        try {
+          const blobRecord = await DB.get('mediaBlobs', img.id);
+          if (blobRecord && blobRecord.blob) {
+            p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
+          }
+        } catch (err) {
+          console.warn(`Failed to load thumbnail for ${p.id}:`, err);
+        }
+      }
+    }
+  }
+  return products;
+}
+
 // ─── Render ────────────────────────────────────────────────────────────────────
 
 export async function render(container, navigate, params = {}) {
@@ -137,10 +165,17 @@ function renderTable(container, products, navigate, mode) {
     const tr = document.createElement('tr');
 
     const nameTd = document.createElement('td');
+    const thumbHTML = product.primaryImageUrl
+      ? `<img src="${product.primaryImageUrl}" style="width:32px;height:32px;object-fit:cover;border-radius:4px">`
+      : `<div style="width:32px;height:32px;background:var(--bg);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;opacity:0.3">💎</div>`;
+
     nameTd.innerHTML = `
-      <div class="product-name">
-        ${esc(product.name || 'Untitled')}
-        <small>${esc(product.sku || '—')}</small>
+      <div class="product-name" style="display:flex;align-items:center;gap:10px">
+        ${thumbHTML}
+        <div>
+          ${esc(product.name || 'Untitled')}
+          <small>${esc(product.sku || '—')}</small>
+        </div>
       </div>`;
 
     const catTd = document.createElement('td');

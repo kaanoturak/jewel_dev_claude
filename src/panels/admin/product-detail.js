@@ -202,11 +202,11 @@ function _buildAdminCostForm(container, product) {
   function updatePreview() {
     const draft = {
       ...product,
-      adminTaxPct:          parseFloatOrNull(document.getElementById('admin-tax-pct')?.value),
-      adminMarginPct:       parseFloatOrNull(document.getElementById('admin-margin-pct')?.value),
-      adminLogisticsCost:   parseFloatOrNull(document.getElementById('admin-logistics')?.value),
-      adminMarketingCost:   parseFloatOrNull(document.getElementById('admin-marketing')?.value),
-      adminMiscCost:        parseFloatOrNull(document.getElementById('admin-misc')?.value),
+      adminTaxPct:          parseFloatOrNull(body.querySelector('#admin-tax-pct')?.value),
+      adminMarginPct:       parseFloatOrNull(body.querySelector('#admin-margin-pct')?.value),
+      adminLogisticsCost:   parseFloatOrNull(body.querySelector('#admin-logistics')?.value),
+      adminMarketingCost:   parseFloatOrNull(body.querySelector('#admin-marketing')?.value),
+      adminMiscCost:        parseFloatOrNull(body.querySelector('#admin-misc')?.value),
     };
     const { transferPrice } = calculate(draft);
     previewEl.textContent = transferPrice != null ? formatCurrency(transferPrice) : '—';
@@ -222,19 +222,21 @@ function parseFloatOrNull(str) {
   return isNaN(n) ? null : n;
 }
 
-function _collectAdminCosts() {
+function _collectAdminCosts(container) {
   return {
-    adminTaxPct:         parseFloatOrNull(document.getElementById('admin-tax-pct')?.value),
-    adminMarginPct:      parseFloatOrNull(document.getElementById('admin-margin-pct')?.value),
-    adminLogisticsCost:  parseFloatOrNull(document.getElementById('admin-logistics')?.value),
-    adminMarketingCost:  parseFloatOrNull(document.getElementById('admin-marketing')?.value),
-    adminMiscCost:       parseFloatOrNull(document.getElementById('admin-misc')?.value),
+    adminTaxPct:         parseFloatOrNull(container.querySelector('#admin-tax-pct')?.value),
+    adminMarginPct:      parseFloatOrNull(container.querySelector('#admin-margin-pct')?.value),
+    adminLogisticsCost:  parseFloatOrNull(container.querySelector('#admin-logistics')?.value),
+    adminMarketingCost:  parseFloatOrNull(container.querySelector('#admin-marketing')?.value),
+    adminMiscCost:       parseFloatOrNull(container.querySelector('#admin-misc')?.value),
   };
 }
 
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
-function _buildActionBar(pageEl, product, navigate, returnTo) {
+function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) {
+  const isPending = product.status === 'PENDING_ADMIN';
+  // ... (rest of the function using contentContainer for _collectAdminCosts)
   const isPending = product.status === 'PENDING_ADMIN';
 
   const bar = document.createElement('div');
@@ -306,7 +308,7 @@ function _buildActionBar(pageEl, product, navigate, returnTo) {
   }
 
   async function saveCosts() {
-    const costs = _collectAdminCosts();
+    const costs = _collectAdminCosts(contentContainer);
     if (costs.adminMarginPct === null) {
       alert('Target Margin % is required before saving.');
       return false;
@@ -460,7 +462,7 @@ export async function render(container, navigate, params = {}) {
   _buildAdminCostForm(content, product);
 
   // Action bar (sticky bottom)
-  _buildActionBar(pageEl, product, navigate, returnTo);
+  _buildActionBar(pageEl, product, navigate, returnTo, content);
 
   container.appendChild(pageEl);
 }
