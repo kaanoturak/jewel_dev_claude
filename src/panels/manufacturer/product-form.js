@@ -24,6 +24,7 @@ let _draft             = {};
 let _variants          = [];
 let _pendingBlobs      = {};   // blobId → { file: File, objectURL: string }
 let _deletedVariantIds = [];
+let _sharedCostMode    = true;
 let _activeTab         = 0;
 let _navigate          = null;
 
@@ -80,7 +81,12 @@ async function _loadProduct(productId) {
       costLabor:     product.costLabor     ?? '',
       costPackaging: product.costPackaging ?? '',
     },
-    variants: variants || [],
+    variants: (variants || []).map(v => ({
+      ...v,
+      costMaterial:  v.costMaterial  ?? '',
+      costLabor:     v.costLabor     ?? '',
+      costPackaging: v.costPackaging ?? '',
+    })),
   };
 }
 
@@ -102,6 +108,16 @@ async function _saveProduct() {
     altText:          img.altText || '',
   }));
 
+  if (_sharedCostMode) {
+    const m = Number(_draft.costMaterial)  || 0;
+    const l = Number(_draft.costLabor)     || 0;
+    const p = Number(_draft.costPackaging) || 0;
+    for (const v of _variants) { v.costMaterial = m; v.costLabor = l; v.costPackaging = p; }
+  } else {
+    _draft.costMaterial  = _variants.reduce((s, v) => s + (Number(v.costMaterial)  || 0), 0);
+    _draft.costLabor     = _variants.reduce((s, v) => s + (Number(v.costLabor)     || 0), 0);
+    _draft.costPackaging = _variants.reduce((s, v) => s + (Number(v.costPackaging) || 0), 0);
+  }
   const costBase = _calcBase(_draft);
 
   if (_productId) {
@@ -212,12 +228,15 @@ async function _saveProduct() {
   for (const v of _variants) {
     if (v.variantId) {
       await DB.patch('variants', v.variantId, {
-        size:       v.size  || null,
-        color:      v.color || null,
-        weight:     v.weight ? Number(v.weight) : null,
-        stockCount: Number(v.stockCount) || 0,
-        isActive:   v.isActive !== false,
-        updatedAt:  now,
+        size:          v.size  || null,
+        color:         v.color || null,
+        weight:        v.weight ? Number(v.weight) : null,
+        stockCount:    Number(v.stockCount) || 0,
+        isActive:      v.isActive !== false,
+        costMaterial:  Number(v.costMaterial)  || 0,
+        costLabor:     Number(v.costLabor)     || 0,
+        costPackaging: Number(v.costPackaging) || 0,
+        updatedAt:     now,
       });
     } else {
       const vId = generateUUID();
@@ -234,6 +253,9 @@ async function _saveProduct() {
             customAttributes: [],
             stockCount:       Number(v.stockCount) || 0,
             isActive:         v.isActive !== false,
+            costMaterial:     Number(v.costMaterial)  || 0,
+            costLabor:        Number(v.costLabor)     || 0,
+            costPackaging:    Number(v.costPackaging) || 0,
             createdAt:        now,
             updatedAt:        now,
           });
@@ -279,7 +301,17 @@ function _collect(formPage) {
         _variants[i].weight     = parseFloat(row.querySelector('[data-f="weight"]')?.value)  || null;
         _variants[i].stockCount = parseInt(row.querySelector('[data-f="stock"]')?.value, 10) || 0;
         _variants[i].isActive   = row.querySelector('[data-f="active"]')?.checked !== false;
+        if (!_sharedCostMode) {
+          _variants[i].costMaterial  = row.querySelector('[data-f="costMat"]')?.value || '';
+          _variants[i].costLabor     = row.querySelector('[data-f="costLab"]')?.value || '';
+          _variants[i].costPackaging = row.querySelector('[data-f="costPkg"]')?.value || '';
+        }
       });
+      if (_sharedCostMode) {
+        _draft.costMaterial  = formPage.querySelector('#sc-mat')?.value ?? _draft.costMaterial;
+        _draft.costLabor     = formPage.querySelector('#sc-lab')?.value ?? _draft.costLabor;
+        _draft.costPackaging = formPage.querySelector('#sc-pkg')?.value ?? _draft.costPackaging;
+      }
       break;
     case 4:
       _draft.costMaterial  = formPage.querySelector('#f-cost-mat')?.value ?? _draft.costMaterial;
@@ -602,9 +634,41 @@ function _buildTagsWidget() {
 
 // ─── Tab: Variants ─────────────────────────────────────────────────────────────
 
+function _renderSharedCostInputs(container) {
+  container.innerHTML = '';
+  if (!_sharedCostMode) {
+    container.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">Costs are set per-variant in the table above.</p>';
+    return;
+  }
+  const m = parseFloat(_draft.costMaterial)  || 0;
+  const l = parseFloat(_draft.costLabor)     || 0;
+  const p = parseFloat(_draft.costPackaging) || 0;
+  container.innerHTML = `
+    <div class="form-row-3">
+      <div class="form-group">
+        <label class="form-label" for="sc-mat">Material Cost (USD) *</label>
+        <input id="sc-mat" class="form-input" type="number" min="0.01" step="0.01"
+               value="${m || ''}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sc-lab">Labor Cost (USD) *</label>
+        <input id="sc-lab" class="form-input" type="number" min="0" step="0.01"
+               value="${l || ''}" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="sc-pkg">
+          Packaging Cost <span class="form-optional">(optional)</span>
+        </label>
+        <input id="sc-pkg" class="form-input" type="number" min="0" step="0.01"
+               value="${p || ''}" placeholder="0.00">
+      </div>
+    </div>`;
+}
+
 function _tabVariants() {
   if (_variants.length === 0) {
-    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true });
+    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true,
+                     costMaterial: '', costLabor: '', costPackaging: '' });
   }
 
   const d = document.createElement('div');
@@ -619,12 +683,43 @@ function _tabVariants() {
   addBtn.textContent = '+ Add Variant';
   addBtn.addEventListener('click', () => {
     _collectVariantRows(d);
-    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true });
+    _variants.push({ size: '', color: '', weight: '', stockCount: 0, isActive: true,
+                     costMaterial: '', costLabor: '', costPackaging: '' });
     d.querySelector('#vt-wrap')?.replaceWith(_buildVariantTable());
   });
   header.appendChild(addBtn);
   d.appendChild(header);
   d.appendChild(_buildVariantTable());
+
+  // ─── Per-variant cost toggle ───────────────────────────────────────────────
+  const costToggle = document.createElement('div');
+  costToggle.style.cssText = 'margin-top:20px;padding-top:16px;border-top:1px solid var(--border)';
+
+  const checkLabel = document.createElement('label');
+  checkLabel.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;'
+    + 'cursor:pointer;margin-bottom:12px;font-weight:500';
+  const checkbox = document.createElement('input');
+  checkbox.type    = 'checkbox';
+  checkbox.id      = 'shared-cost-check';
+  checkbox.checked = _sharedCostMode;
+  const checkText  = document.createElement('span');
+  checkText.textContent = 'Same cost for all variants';
+  checkLabel.append(checkbox, checkText);
+  costToggle.appendChild(checkLabel);
+
+  const costInputsEl = document.createElement('div');
+  costInputsEl.id = 'variant-cost-inputs';
+  _renderSharedCostInputs(costInputsEl);
+  costToggle.appendChild(costInputsEl);
+  d.appendChild(costToggle);
+
+  checkbox.addEventListener('change', () => {
+    _collectVariantRows(d);
+    _sharedCostMode = checkbox.checked;
+    d.querySelector('#vt-wrap')?.replaceWith(_buildVariantTable());
+    _renderSharedCostInputs(costInputsEl);
+  });
+
   return d;
 }
 
@@ -637,6 +732,11 @@ function _collectVariantRows(panel) {
     _variants[i].weight     = parseFloat(row.querySelector('[data-f="weight"]')?.value)  || null;
     _variants[i].stockCount = parseInt(row.querySelector('[data-f="stock"]')?.value, 10) || 0;
     _variants[i].isActive   = row.querySelector('[data-f="active"]')?.checked !== false;
+    if (!_sharedCostMode) {
+      _variants[i].costMaterial  = row.querySelector('[data-f="costMat"]')?.value || '';
+      _variants[i].costLabor     = row.querySelector('[data-f="costLab"]')?.value || '';
+      _variants[i].costPackaging = row.querySelector('[data-f="costPkg"]')?.value || '';
+    }
   });
 }
 
@@ -646,11 +746,14 @@ function _buildVariantTable() {
 
   const tbl = document.createElement('table');
   tbl.className = 'variant-table';
+  const costCols = !_sharedCostMode
+    ? '<th>Material $</th><th>Labor $</th><th>Packaging $</th>'
+    : '';
   tbl.innerHTML = `
     <thead>
       <tr>
         <th>Size</th><th>Color</th><th>Weight (g)</th>
-        <th>Stock *</th><th>Active</th><th>SKU</th><th></th>
+        <th>Stock *</th><th>Active</th>${costCols}<th>SKU</th><th></th>
       </tr>
     </thead>
     <tbody id="vt-body"></tbody>`;
@@ -660,12 +763,17 @@ function _buildVariantTable() {
   _variants.forEach((v, i) => {
     const tr = document.createElement('tr');
     tr.dataset.variantIdx = i;
+    const costInputs = !_sharedCostMode ? `
+      <td><input class="variant-input" type="number" data-f="costMat" min="0" step="0.01" value="${v.costMaterial||''}" placeholder="0.00" style="width:80px"></td>
+      <td><input class="variant-input" type="number" data-f="costLab" min="0" step="0.01" value="${v.costLabor||''}"    placeholder="0.00" style="width:80px"></td>
+      <td><input class="variant-input" type="number" data-f="costPkg" min="0" step="0.01" value="${v.costPackaging||''}" placeholder="0.00" style="width:80px"></td>` : '';
     tr.innerHTML = `
       <td><input class="variant-input" type="text"   data-f="size"   maxlength="20" value="${esc(v.size||'')}"  placeholder="e.g. 7.5"></td>
       <td><input class="variant-input" type="text"   data-f="color"  maxlength="30" value="${esc(v.color||'')}" placeholder="e.g. Gold"></td>
       <td><input class="variant-input" type="number" data-f="weight" min="0" step="0.1" value="${v.weight||''}" placeholder="g" style="width:72px"></td>
       <td><input class="variant-input" type="number" data-f="stock"  min="0" step="1"   value="${v.stockCount??0}" style="width:72px"></td>
       <td style="text-align:center"><input type="checkbox" data-f="active"${v.isActive!==false?' checked':''}></td>
+      ${costInputs}
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">${esc(v.sku||'—')}</td>
       <td>${_variants.length > 1 ? `<button class="btn btn--ghost btn--sm" data-rm="${i}" title="Remove">✕</button>` : ''}</td>`;
     tbody.appendChild(tr);
@@ -911,6 +1019,7 @@ export async function render(container, navigate, params = {}) {
   _activeTab         = 0;
   _pendingBlobs      = {};
   _deletedVariantIds = [];
+  _sharedCostMode    = true;
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;padding:60px;color:var(--text-muted)">

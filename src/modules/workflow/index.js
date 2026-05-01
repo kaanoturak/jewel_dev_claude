@@ -53,17 +53,7 @@ function _requireNotes(toStatus, notes) {
 }
 
 function _validateProductReadiness(product, toStatus) {
-  // Revision, rejection, and archive transitions require notes (enforced separately)
-  // but never need cost-layer or readiness validation.
-  if (
-    toStatus === 'REVISION_REQUESTED_BY_ADMIN' ||
-    toStatus === 'REVISION_REQUESTED_BY_SALES' ||
-    toStatus === 'REJECTED' ||
-    toStatus === 'ARCHIVED'
-  ) return;
-
   if (toStatus === 'PENDING_ADMIN') {
-    // Manufacturer submitting — validate full product + manufacturer costs.
     const r1 = validate(PRODUCT_SCHEMA, product);
     const r2 = validate(MANUFACTURER_COST_SCHEMA, product);
     const allErrors = { ...r1.errors, ...r2.errors };
@@ -72,23 +62,27 @@ function _validateProductReadiness(product, toStatus) {
         `Product cannot be submitted — validation errors on: ${Object.keys(allErrors).join(', ')}`
       );
     }
+    return;
   }
 
   if (toStatus === 'PENDING_SALES') {
-    // Admin approving — admin cost layer must be complete.
     const { valid, errors } = validate(ADMIN_COST_SCHEMA, product);
     if (!valid) {
       throw new Error(
         `Admin cost layer is incomplete — errors on: ${Object.keys(errors).join(', ')}`
       );
     }
+    return;
   }
 
   if (toStatus === 'READY_FOR_ECOMMERCE') {
     if (!product.sellingPrice || Number(product.sellingPrice) <= 0) {
       throw new Error('Selling price must be set before marking product as ready for e-commerce');
     }
+    return;
   }
+
+  // All other transitions (REVISION_REQUESTED_BY_*, REJECTED, ARCHIVED, etc.) — no readiness checks.
 }
 
 function _buildProductUpdates(product, toStatus, userId, notes, now) {

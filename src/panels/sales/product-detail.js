@@ -89,17 +89,42 @@ function _renderHeader(product) {
 }
 
 function _renderProductInfo(product) {
-  const rows = [
-    field('Description', product.productDescription
-      ? `<div style="line-height:1.6">${product.productDescription}</div>` : ''),
-    field('SEO Title',    esc(product.seoTitle   || '')),
-    field('Category',    esc(product.category   || '—')),
-    field('Material',    esc(product.material   || '—')),
-    field('Collection',  esc(product.collection || '')),
-    field('Updated',     formatRelativeTime(product.updatedAt)),
-  ].join('');
+  const section = document.createElement('div');
+  section.className = 'card';
+  section.style.cssText = 'margin-bottom:20px;overflow:hidden';
 
-  return sectionCard('Product Info', rows);
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:10px 20px;background:var(--surface-alt);border-bottom:1px solid var(--border);'
+    + 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)';
+  hdr.textContent = 'Product Info';
+  section.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:4px 20px 12px';
+
+  const descRow = document.createElement('div');
+  descRow.style.cssText = 'display:grid;grid-template-columns:180px 1fr;gap:8px;padding:7px 0;'
+    + 'border-bottom:1px solid var(--border-light);font-size:13px';
+  const descLabel = document.createElement('span');
+  descLabel.style.color = 'var(--text-muted)';
+  descLabel.textContent = 'Description';
+  const descDiv = document.createElement('div');
+  descDiv.style.cssText = 'line-height:1.6;color:var(--text);font-weight:500;word-break:break-word';
+  descDiv.innerHTML = product.productDescription || '—';
+  descRow.appendChild(descLabel);
+  descRow.appendChild(descDiv);
+  body.appendChild(descRow);
+
+  body.insertAdjacentHTML('beforeend', [
+    field('SEO Title',   esc(product.seoTitle   || '')),
+    field('Category',   esc(product.category   || '—')),
+    field('Material',   esc(product.material   || '—')),
+    field('Collection', esc(product.collection || '')),
+    field('Updated',    formatRelativeTime(product.updatedAt)),
+  ].join(''));
+
+  section.appendChild(body);
+  return section;
 }
 
 function _renderVariants(variants) {
@@ -451,9 +476,9 @@ export async function render(container, navigate, params = {}) {
       </div>`;
   }
 
-  content.innerHTML += _renderHeader(product);
-  content.innerHTML += _renderProductInfo(product);
-  content.innerHTML += _renderVariants(variants);
+  content.insertAdjacentHTML('beforeend', _renderHeader(product));
+  content.appendChild(_renderProductInfo(product));
+  content.insertAdjacentHTML('beforeend', _renderVariants(variants));
 
   pageEl.appendChild(content);
 
