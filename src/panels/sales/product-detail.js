@@ -109,8 +109,8 @@ function _renderProductInfo(product) {
   descLabel.style.color = 'var(--text-muted)';
   descLabel.textContent = 'Description';
   const descDiv = document.createElement('div');
-  descDiv.style.cssText = 'line-height:1.6;color:var(--text);font-weight:500;word-break:break-word;white-space:pre-wrap';
-  descDiv.textContent = product.productDescription || '—';
+  descDiv.style.cssText = 'line-height:1.6;color:var(--text);font-weight:500;word-break:break-word';
+  descDiv.innerHTML = product.productDescription || '—';
   descRow.appendChild(descLabel);
   descRow.appendChild(descDiv);
   body.appendChild(descRow);

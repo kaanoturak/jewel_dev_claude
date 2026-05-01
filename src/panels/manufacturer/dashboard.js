@@ -1,6 +1,6 @@
 import DB                              from '../../core/db.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
-import { statusBadge, formatRelativeTime, truncate } from '../../shared/utils/index.js';
+import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/utils/index.js';
 
 // Statuses that allow the manufacturer to edit the product
 const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
@@ -159,8 +159,8 @@ function renderProductsTable(container, products, navigate) {
       <div class="product-name" style="display:flex;align-items:center;gap:10px">
         ${thumbHTML}
         <div>
-          ${product.name || 'Untitled'}
-          <small>${product.sku || '—'}</small>
+          ${esc(product.name || 'Untitled')}
+          <small>${esc(product.sku || '—')}</small>
         </div>
       </div>`;
 
