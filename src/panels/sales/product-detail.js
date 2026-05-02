@@ -151,9 +151,9 @@ function _renderVariants(variants) {
     </table>`);
 }
 
-// ─── Sales pricing form ────────────────────────────────────────────────────────
+// ─── Per-variant pricing form ──────────────────────────────────────────────────
 
-function _buildPricingForm(container, product, allCampaigns) {
+function _buildVariantPricingForm(content, variants) {
   const section = document.createElement('div');
   section.className = 'card';
   section.style.cssText = 'margin-bottom:20px;overflow:hidden';
@@ -161,7 +161,66 @@ function _buildPricingForm(container, product, allCampaigns) {
   const hdr = document.createElement('div');
   hdr.style.cssText = 'padding:10px 20px;background:var(--surface-alt);border-bottom:1px solid var(--border);'
     + 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)';
-  hdr.textContent = 'Sales Pricing';
+  hdr.textContent = `Per-Variant Pricing (${variants.length} variant${variants.length !== 1 ? 's' : ''})`;
+  section.appendChild(hdr);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:12px 20px 16px;overflow-x:auto';
+
+  const table = document.createElement('table');
+  table.className = 'products-table';
+  table.style.cssText = 'width:100%;min-width:560px';
+
+  table.innerHTML = `
+    <thead><tr>
+      <th style="width:120px">SKU</th>
+      <th style="width:80px">Size</th>
+      <th style="width:80px">Color</th>
+      <th style="width:170px">Selling Price</th>
+      <th style="width:170px">Compare-at Price</th>
+    </tr></thead>`;
+
+  const tbody = document.createElement('tbody');
+  for (const v of variants) {
+    const tr = document.createElement('tr');
+    const safeId = esc(v.variantId);
+    tr.innerHTML = `
+      <td style="font-family:var(--font-mono);font-size:11px">${esc(v.sku || '—')}</td>
+      <td>${esc(v.size || '—')}</td>
+      <td>${esc(v.color || '—')}</td>
+      <td><input id="variant-price-${safeId}" type="number" step="0.01" min="0"
+                 class="form-input" style="width:130px"
+                 value="${v.sellingPrice != null ? esc(String(v.sellingPrice)) : ''}"
+                 placeholder="Use default"></td>
+      <td><input id="variant-compare-${safeId}" type="number" step="0.01" min="0"
+                 class="form-input" style="width:130px"
+                 value="${v.compareAtPrice != null ? esc(String(v.compareAtPrice)) : ''}"
+                 placeholder="Optional"></td>`;
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  body.appendChild(table);
+
+  const hint = document.createElement('p');
+  hint.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:8px';
+  hint.textContent = 'Leave blank to use the default product price below.';
+  body.appendChild(hint);
+
+  section.appendChild(body);
+  content.appendChild(section);
+}
+
+// ─── Sales pricing form ────────────────────────────────────────────────────────
+
+function _buildPricingForm(container, product, allCampaigns, isDefault = false) {
+  const section = document.createElement('div');
+  section.className = 'card';
+  section.style.cssText = 'margin-bottom:20px;overflow:hidden';
+
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:10px 20px;background:var(--surface-alt);border-bottom:1px solid var(--border);'
+    + 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)';
+  hdr.textContent = isDefault ? 'Default / Fallback Pricing' : 'Sales Pricing';
   section.appendChild(hdr);
 
   const body = document.createElement('div');
@@ -297,7 +356,7 @@ function _collectPricing(scopeEl) {
 
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
-function _buildActionBar(pageEl, product, navigate, returnTo, pricingContent) {
+function _buildActionBar(pageEl, product, variants, navigate, returnTo, pricingContent) {
   const isSalesPending = product.status === 'PENDING_SALES';
 
   const bar = document.createElement('div');
@@ -352,8 +411,17 @@ function _buildActionBar(pageEl, product, navigate, returnTo, pricingContent) {
     const pricing = _collectPricing(pricingContent);
     const errEl = pricingContent.querySelector('#pricing-validation-error');
 
-    const { valid, errors } = validate(SALES_PRICING_SCHEMA, pricing);
-    if (!valid) {
+    // Determine if any variant has an explicit price set
+    const hasVariantPrice = variants.length > 0 && variants.some(v => {
+      const val = parseFloatOrNull(pricingContent.querySelector(`#variant-price-${v.variantId}`)?.value);
+      return val != null && val > 0;
+    });
+
+    const { errors } = validate(SALES_PRICING_SCHEMA, pricing);
+    // When variant prices are set, product-level sellingPrice is optional (acts as fallback)
+    if (hasVariantPrice && errors.sellingPrice) delete errors.sellingPrice;
+
+    if (Object.keys(errors).length > 0) {
       const msgs = Object.values(errors).flat();
       errEl.innerHTML = msgs.map(m => `<p style="margin:2px 0">${esc(m)}</p>`).join('');
       errEl.style.display = 'block';
@@ -363,9 +431,20 @@ function _buildActionBar(pageEl, product, navigate, returnTo, pricingContent) {
 
     await DB.patch('products', product.id, {
       ...pricing,
+      variantPricingEnabled: hasVariantPrice,
       updatedBy: user?.userId,
       updatedAt: Date.now(),
     });
+
+    if (variants.length > 0) {
+      await Promise.all(variants.map(v =>
+        DB.patch('variants', v.variantId, {
+          sellingPrice:   parseFloatOrNull(pricingContent.querySelector(`#variant-price-${v.variantId}`)?.value) ?? null,
+          compareAtPrice: parseFloatOrNull(pricingContent.querySelector(`#variant-compare-${v.variantId}`)?.value) ?? null,
+        })
+      ));
+    }
+
     return true;
   }
 
@@ -513,11 +592,14 @@ export async function render(container, navigate, params = {}) {
 
   pageEl.appendChild(content);
 
+  // Per-variant pricing (rendered above the default pricing form when variants exist)
+  if (variants.length > 0) _buildVariantPricingForm(content, variants);
+
   // Pricing form (interactive)
-  _buildPricingForm(content, product, allCampaigns);
+  _buildPricingForm(content, product, allCampaigns, variants.length > 0);
 
   // Action bar (sticky bottom)
-  _buildActionBar(pageEl, product, navigate, returnTo, content);
+  _buildActionBar(pageEl, product, variants, navigate, returnTo, content);
 
   container.appendChild(pageEl);
 }
