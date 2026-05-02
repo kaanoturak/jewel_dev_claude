@@ -77,7 +77,7 @@ function openDB() {
 
     req.onupgradeneeded = (event) => {
       const db = event.target.result;
-      _applySchema(db);
+      _applySchema(db, event.target.transaction);
     };
 
     req.onsuccess = (event) => {
@@ -97,10 +97,10 @@ function openDB() {
   });
 }
 
-function _applySchema(db) {
+function _applySchema(db, tx) {
   for (const store of STORES) {
     const objectStore = db.objectStoreNames.contains(store.name)
-      ? db.transaction.objectStore(store.name)
+      ? tx.objectStore(store.name)
       : db.createObjectStore(store.name, store.options);
 
     for (const idx of store.indexes) {
