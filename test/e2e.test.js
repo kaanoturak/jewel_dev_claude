@@ -64,6 +64,27 @@ const SALES_USER = {
 
 let _passed = 0;
 let _failed = 0;
+const _testProductIds = new Set();
+
+async function safeCleanup(productId) {
+  if (!productId) return;
+  try {
+    // 1. Delete all variants for this product
+    const variants = await DB.queryByIndex('variants', 'productId', productId);
+    if (variants && variants.length > 0) {
+      await Promise.all(variants.map(v => DB.delete('variants', v.variantId)));
+    }
+    // 2. Delete the product itself
+    await DB.delete('products', productId);
+    // 3. Delete any audit logs for this product to keep it clean
+    const logs = await DB.queryByIndex('auditLog', 'productId', productId);
+    if (logs && logs.length > 0) {
+      await Promise.all(logs.map(l => DB.delete('auditLog', l.logId)));
+    }
+  } catch (err) {
+    // Ignore cleanup errors
+  }
+}
 
 function assert(label, condition, detail = '') {
   if (condition) {
@@ -118,7 +139,8 @@ async function testStep1_ManufacturerCreatesAndSubmits(productId, sku) {
   console.group('1. Manufacturer: create product and submit');
 
   // Ensure product doesn't exist from a previous interrupted run
-  try { await DB.delete('products', productId); } catch {}
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
 
   // Act as manufacturer
   await Auth.setCurrentUser(MFR_USER);
@@ -304,6 +326,9 @@ async function testStep5_RevisionFlow() {
   console.group('5. Admin revision request flow');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku = await generateProductSKU('Necklace', 'Silver');
   const product = makeProduct(productId, sku);
 
@@ -348,6 +373,9 @@ async function testStep6_SalesRevisionLoop() {
   console.group('6. Sales revision loop: PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_ADMIN → PENDING_SALES → READY_FOR_ECOMMERCE');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku       = await generateProductSKU('Earring', 'Silver');
   const product   = makeProduct(productId, sku);
 
@@ -453,6 +481,8 @@ async function testStep7_PermissionEnforcement(productId) {
 
   // 2. Sales cannot trigger ADMIN transitions (PENDING_ADMIN -> PENDING_SALES)
   const adminTestId = generateUUID();
+  _testProductIds.add(adminTestId);
+  await safeCleanup(adminTestId);
   await DB.add('products', { ...pBefore, id: adminTestId, status: 'PENDING_ADMIN' });
   
   await assertRejects(
@@ -463,6 +493,8 @@ async function testStep7_PermissionEnforcement(productId) {
   // 3. MANUFACTURER cannot skip ADMIN (DRAFT → PENDING_SALES)
   await Auth.setCurrentUser(MFR_USER);
   const mfrTestId = generateUUID();
+  _testProductIds.add(mfrTestId);
+  await safeCleanup(mfrTestId);
   await DB.add('products', { ...pBefore, id: mfrTestId, status: 'DRAFT' });
 
   await assertRejects(
@@ -488,6 +520,9 @@ async function testStep8_DynamicOverrides() {
   console.group('8. Dynamic Overrides: Super Admin authority');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku = 'E2E-OVR-001';
   await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_ADMIN' });
 
@@ -535,6 +570,9 @@ async function testStep9_ViolationLogging() {
   console.group('9. Violation Logging: verify blocked attempts are recorded');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   await DB.add('products', { ...makeProduct(productId, 'E2E-LOG-001'), status: 'PENDING_SALES' });
 
   // MANUFACTURER attempts to approve PENDING_SALES
@@ -557,6 +595,9 @@ async function testStep_Rejection() {
   console.group('10. Rejection path: Admin rejects, MANUFACTURER cannot act, SUPER_ADMIN recovers');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku = await generateProductSKU('Bracelet', 'Silver');
   const product = makeProduct(productId, sku);
 
@@ -666,6 +707,9 @@ async function testStep_DoubleSubmit() {
   console.group('13. Double-save guard: DB rejects duplicate product IDs');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku = await generateProductSKU('Brooch', 'Brass');
   const product = makeProduct(productId, sku);
 
@@ -693,28 +737,19 @@ async function testStep_DoubleSubmit() {
   return productId;
 }
 
-// ─── Cleanup ──────────────────────────────────────────────────────────────────
-
-async function cleanup(productId) {
-  try { await DB.delete('products', productId); } catch {}
-  // Reset settings
-  try { await DB.delete('settings', 'permissionOverrides'); } catch {}
-}
-
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 async function run() {
   console.group('%c TuguPIM — E2E Workflow Test', 'font-weight:bold;font-size:14px');
   console.log('Tests run in the browser against live IndexedDB.\n');
 
-  // Init auth module (loads persisted user from settings if any)
-  await Auth.init();
-
-  const productId = generateUUID();
-  const sku       = await generateProductSKU('Ring', 'Gold');
-
-  let step13Id;
   try {
+    // Init auth module (loads persisted user from settings if any)
+    await Auth.init();
+
+    const productId = generateUUID();
+    const sku       = await generateProductSKU('Ring', 'Gold');
+
     await testStep1_ManufacturerCreatesAndSubmits(productId, sku);
     await testStep2_AdminCostsAndApprove(productId);
     await testStep3_SalesPriceAndApprove(productId);
@@ -729,11 +764,17 @@ async function run() {
     await testStep_Rejection();
     await testStep_NegativeCosts();
     await testStep_CampaignDiscount();
-    step13Id = await testStep_DoubleSubmit();
+    await testStep_DoubleSubmit();
+  } catch (err) {
+    console.error('[e2e] Test suite failed prematurely:', err);
+    _failed++;
   } finally {
-    await cleanup(productId);
-    // Clean up step 13 product (created inside testStep_DoubleSubmit)
-    try { if (step13Id) await DB.delete('products', step13Id); } catch {}
+    console.log('Finalizing: Cleaning up test data...');
+    const cleanupTasks = Array.from(_testProductIds).map(id => safeCleanup(id));
+    await Promise.all(cleanupTasks);
+    
+    // Reset settings
+    try { await DB.delete('settings', 'permissionOverrides'); } catch {}
     // Restore whatever user was active before the test
     await Auth.init();
   }

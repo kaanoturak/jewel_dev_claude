@@ -74,8 +74,8 @@
 
 ### Phase 5 — Wire up
 - [x] src/app.js — all 4 panels mounted via dynamic import: MANUFACTURER, ADMIN, SALES, SUPER_ADMIN
-- [x] PROMPT.md — all phases marked complete
-- [x] run.bat — local server script added for easy browser access
+- [x] SPEC.md — all phases marked complete
+- [x] start.bat — local server script added for easy browser access
 
 ### Post-Phase Fixes & Improvements
 - [x] workflow/index.js — `_validateProductReadiness` no longer blocks REVISION_REQUESTED_BY_SALES → PENDING_ADMIN
@@ -129,7 +129,7 @@ Nothing remaining. All phases complete, all audit-identified bugs resolved, all 
 - Super Admin override: call `transition()` with SUPER_ADMIN user — workflow bypasses ALLOWED_TRANSITIONS for that role
 - Image blobs: store in mediaBlobs store with blobId; MediaObject on product holds metadata only
 - campaign effectivePrice: never stored, always computed at render time via `getEffectivePrice(product, campaign)` from engine.js
-- **Local Dev:** Run `run.bat` to start a Python server and open the app in your browser.
+- **Local Dev:** Run `start.bat` to start a Python server and open the app in your browser.
 
 ## Known Limitations (Phase 6 scope)
 - No real authentication — login screen accepts any credentials; user identity is stored in IndexedDB settings
