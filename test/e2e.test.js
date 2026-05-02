@@ -19,9 +19,19 @@ import * as Auth                       from '../src/modules/auth/index.js';
 import { transition, ALLOWED_TRANSITIONS } from '../src/modules/workflow/index.js';
 import { generateUUID }                from '../src/shared/utils/index.js';
 import { generateProductSKU }          from '../src/modules/product/sku.js';
-import { calculate }                   from '../src/core/engine.js';
+import { calculate, getEffectivePrice } from '../src/core/engine.js';
+import { validate, MANUFACTURER_COST_SCHEMA } from '../src/core/validator.js';
 
 // ─── Test users ───────────────────────────────────────────────────────────────
+
+const SUPER_USER = {
+  userId:      'e2e-super-001',
+  email:       'super@e2e.test',
+  displayName: 'E2E Super Admin',
+  role:        'SUPER_ADMIN',
+  isActive:    true,
+  createdAt:   Date.now(),
+};
 
 const MFR_USER = {
   userId:      'e2e-mfr-001',
@@ -482,7 +492,6 @@ async function testStep8_DynamicOverrides() {
   await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_ADMIN' });
 
   // 1. Super Admin disables Admin approve transition
-  const SUPER_USER = { userId: 'e2e-super-001', role: 'SUPER_ADMIN' };
   await Auth.setCurrentUser(SUPER_USER);
   
   // Transition we will block: ADMIN:PENDING_ADMIN:PENDING_SALES
@@ -544,6 +553,142 @@ async function testStep9_ViolationLogging() {
   console.groupEnd();
 }
 
+async function testStep_Rejection() {
+  console.group('10. Rejection path: Admin rejects, MANUFACTURER cannot act, SUPER_ADMIN recovers');
+
+  const productId = generateUUID();
+  const sku = await generateProductSKU('Bracelet', 'Silver');
+  const product = makeProduct(productId, sku);
+
+  // Create and submit as manufacturer
+  await Auth.setCurrentUser(MFR_USER);
+  await DB.add('products', product);
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  // Admin rejects — notes required
+  await Auth.setCurrentUser(ADMIN_USER);
+  await assertRejects(
+    'REJECTED requires rejection notes',
+    () => transition(productId, 'REJECTED', ADMIN_USER.userId, '')
+  );
+
+  await transition(productId, 'REJECTED', ADMIN_USER.userId, 'Product specification is incomplete.');
+
+  const rejected = await DB.get('products', productId);
+  assert('Status is REJECTED', rejected?.status === 'REJECTED', rejected?.status);
+  assert('rejectionReason set', rejected?.rejectionReason?.includes('incomplete'), rejected?.rejectionReason);
+
+  // MANUFACTURER cannot transition from REJECTED
+  await Auth.setCurrentUser(MFR_USER);
+  await assertRejects(
+    'MANUFACTURER cannot act on REJECTED product',
+    () => transition(productId, 'PENDING_ADMIN', MFR_USER.userId)
+  );
+
+  // SUPER_ADMIN can force from REJECTED to DRAFT
+  await Auth.setCurrentUser(SUPER_USER);
+  await transition(productId, 'DRAFT', SUPER_USER.userId, 'Recovered by Super Admin for resubmission.');
+
+  const recovered = await DB.get('products', productId);
+  assert('SUPER_ADMIN forced REJECTED → DRAFT', recovered?.status === 'DRAFT', recovered?.status);
+
+  // Cleanup
+  try { await DB.delete('products', productId); } catch {}
+
+  console.groupEnd();
+}
+
+async function testStep_NegativeCosts() {
+  console.group('11. Negative cost validation: schema rejects negative inputs');
+
+  // validate() should reject negative costMaterial
+  const negativeCosts = { costMaterial: -10, costLabor: 5 };
+  const { valid: v1, errors: e1 } = validate(MANUFACTURER_COST_SCHEMA, negativeCosts);
+  assert('Negative costMaterial fails MANUFACTURER_COST_SCHEMA',
+    !v1 && !!e1.costMaterial, JSON.stringify(e1));
+
+  // validate() should reject negative costLabor
+  const negativeLabor = { costMaterial: 10, costLabor: -5 };
+  const { valid: v2, errors: e2 } = validate(MANUFACTURER_COST_SCHEMA, negativeLabor);
+  assert('Negative costLabor fails MANUFACTURER_COST_SCHEMA',
+    !v2 && !!e2.costLabor, JSON.stringify(e2));
+
+  // validate() should allow 0 for material cost (free items)
+  const zeroCost = { costMaterial: 0, costLabor: 0 };
+  const { valid: v3 } = validate(MANUFACTURER_COST_SCHEMA, zeroCost);
+  assert('Zero costMaterial passes MANUFACTURER_COST_SCHEMA (free items allowed)', v3);
+
+  // validate() should reject negative costPackaging when present
+  const negativePkg = { costMaterial: 5, costLabor: 2, costPackaging: -1 };
+  const { valid: v4, errors: e4 } = validate(MANUFACTURER_COST_SCHEMA, negativePkg);
+  assert('Negative costPackaging fails MANUFACTURER_COST_SCHEMA',
+    !v4 && !!e4.costPackaging, JSON.stringify(e4));
+
+  console.groupEnd();
+}
+
+async function testStep_CampaignDiscount() {
+  console.group('12. Campaign discount edge cases: >100% floors at $0, no crash');
+
+  const product = { sellingPrice: 50 };
+
+  // Over 100% discount → effective price = 0
+  const overCampaign = {
+    id: 'e2e-camp-over',
+    isActive: true,
+    startsAt: Date.now() - 1000,
+    endsAt: null,
+    discountType: 'PERCENTAGE',
+    discountValue: 150,
+  };
+  const eff1 = getEffectivePrice(product, overCampaign);
+  assert('150% PERCENTAGE discount floors effective price to 0', eff1 === 0, String(eff1));
+
+  // Exactly 100% discount → effective price = 0
+  const exactCampaign = { ...overCampaign, discountValue: 100 };
+  const eff2 = getEffectivePrice(product, exactCampaign);
+  assert('100% PERCENTAGE discount produces $0 effective price', eff2 === 0, String(eff2));
+
+  // FIXED discount larger than price → effective price = 0
+  const fixedOver = { ...overCampaign, discountType: 'FIXED', discountValue: 999 };
+  const eff3 = getEffectivePrice(product, fixedOver);
+  assert('FIXED discount larger than price floors to $0', eff3 === 0, String(eff3));
+
+  // No crash when sellingPrice is null
+  const nullProduct = { sellingPrice: null };
+  const eff4 = getEffectivePrice(nullProduct, overCampaign);
+  assert('No crash when sellingPrice is null, effectivePrice is null', eff4 === null, String(eff4));
+
+  console.groupEnd();
+}
+
+async function testStep_DoubleSubmit() {
+  console.group('13. Double-save guard: DB rejects duplicate product IDs');
+
+  const productId = generateUUID();
+  const sku = await generateProductSKU('Brooch', 'Brass');
+  const product = makeProduct(productId, sku);
+
+  // First add should succeed
+  await DB.add('products', product);
+  const saved = await DB.get('products', productId);
+  assert('First DB.add succeeds', saved?.id === productId);
+
+  // Second add with same ID should fail (enforces uniqueness at DB layer)
+  await assertRejects(
+    'Second DB.add with same productId rejects (duplicate key)',
+    () => DB.add('products', { ...product })
+  );
+
+  const count = (await DB.getAll('products')).filter(p => p.id === productId).length;
+  assert('Only one product record exists after duplicate attempt', count === 1, String(count));
+
+  // Cleanup
+  try { await DB.delete('products', productId); } catch {}
+
+  console.groupEnd();
+}
+
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 
 async function cleanup(productId) {
@@ -576,6 +721,10 @@ async function run() {
     await testStep7_PermissionEnforcement(productId);
     await testStep8_DynamicOverrides();
     await testStep9_ViolationLogging();
+    await testStep_Rejection();
+    await testStep_NegativeCosts();
+    await testStep_CampaignDiscount();
+    await testStep_DoubleSubmit();
   } finally {
     await cleanup(productId);
     // Restore whatever user was active before the test
