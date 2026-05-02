@@ -48,10 +48,13 @@ function calcTransferPrice(product, costBase) {
  * Effective price after applying an active campaign discount.
  * Always computed at runtime — never stored (Section 11).
  *
+ * @param {object} variant - Optional variant record; its sellingPrice takes
+ *   priority over product.sellingPrice when present (per-variant pricing).
+ *
  * Returns null when sellingPrice is not yet set.
  */
-function calcEffectivePrice(product, campaign) {
-  const base = Number(product.sellingPrice);
+function calcEffectivePrice(product, campaign, variant = null) {
+  const base = Number(variant?.sellingPrice ?? product.sellingPrice);
   if (!base || base <= 0) return null;
   if (!campaign || !campaign.isActive) return base;
 
@@ -84,12 +87,12 @@ function round2(n) {
  * @param {object} campaign - Active campaign record, or null
  * @returns {{ costBase: number, transferPrice: number|null, effectivePrice: number|null }}
  */
-export function calculate(product, campaign = null) {
+export function calculate(product, campaign = null, variant = null) {
   if (!product) return { costBase: 0, transferPrice: null, effectivePrice: null };
 
   const costBase      = calcCostBase(product);
   const transferPrice = calcTransferPrice(product, costBase);
-  const effectivePrice = calcEffectivePrice(product, campaign);
+  const effectivePrice = calcEffectivePrice(product, campaign, variant);
 
   return { costBase, transferPrice, effectivePrice };
 }
@@ -97,6 +100,6 @@ export function calculate(product, campaign = null) {
 /**
  * Convenience: compute only the effective price (used by campaign module at render time).
  */
-export function getEffectivePrice(product, campaign) {
-  return calcEffectivePrice(product, campaign);
+export function getEffectivePrice(product, campaign, variant = null) {
+  return calcEffectivePrice(product, campaign, variant);
 }
