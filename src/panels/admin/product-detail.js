@@ -462,5 +462,16 @@ export async function render(container, navigate, params = {}) {
   // Action bar (sticky bottom)
   _buildActionBar(pageEl, product, navigate, returnTo, content);
 
+  // Replace comma with dot in all number inputs (Turkish locale numpad support)
+  pageEl.addEventListener('keydown', e => {
+    if (e.key === ',' && e.target.matches('input[type="number"]')) {
+      e.preventDefault();
+      const inp = e.target;
+      const pos = inp.selectionStart;
+      inp.value = inp.value.slice(0, pos) + '.' + inp.value.slice(inp.selectionEnd);
+      inp.setSelectionRange(pos + 1, pos + 1);
+    }
+  });
+
   container.appendChild(pageEl);
 }

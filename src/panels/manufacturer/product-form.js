@@ -1121,6 +1121,17 @@ export async function render(container, navigate, params = {}) {
   body.appendChild(_renderActiveTab(formPage));
   formPage.appendChild(body);
 
+  // Replace comma with dot in all number inputs (Turkish locale numpad support)
+  formPage.addEventListener('keydown', e => {
+    if (e.key === ',' && e.target.matches('input[type="number"]')) {
+      e.preventDefault();
+      const inp = e.target;
+      const pos = inp.selectionStart;
+      inp.value = inp.value.slice(0, pos) + '.' + inp.value.slice(inp.selectionEnd);
+      inp.setSelectionRange(pos + 1, pos + 1);
+    }
+  });
+
   container.innerHTML = '';
   container.appendChild(formPage);
 }
