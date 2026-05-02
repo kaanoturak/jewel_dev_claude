@@ -68,6 +68,13 @@ export const VARIANT_SCHEMA = {
   color: [
     { rule: 'maxLength', value: 30, message: 'Color must be 30 characters or fewer' },
   ],
+  // Optional per-variant price overrides — validated only when a value is present
+  sellingPrice: [
+    { rule: 'min', value: 0, message: 'Variant selling price cannot be negative' },
+  ],
+  compareAtPrice: [
+    { rule: 'min', value: 0, message: 'Variant compare-at price cannot be negative' },
+  ],
 };
 
 export const MANUFACTURER_COST_SCHEMA = {
