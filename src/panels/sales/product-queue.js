@@ -16,9 +16,17 @@ export async function render(container, navigate, params = {}) {
 
   let products;
   try {
-    products = isQueue
-      ? await DB.queryByIndex('products', 'status', 'PENDING_SALES')
-      : await DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE');
+    if (isQueue) {
+      products = await DB.queryByIndex('products', 'status', 'PENDING_SALES');
+    } else if (mode === 'active') {
+      products = await DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE');
+    } else {
+      const [pending, ready] = await Promise.all([
+        DB.queryByIndex('products', 'status', 'PENDING_SALES'),
+        DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE'),
+      ]);
+      products = [...(pending || []), ...(ready || [])];
+    }
   } catch (err) {
     container.innerHTML = `
       <div class="view-placeholder">

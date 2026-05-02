@@ -11,6 +11,7 @@ const VIEWS = {
   'products/queue':  renderProductQueue,
   'products/detail': renderProductDetail,
   'products/active': (c, nav, p) => renderProductQueue(c, nav, { ...p, mode: 'active' }),
+  'products/all':    (c, nav, p) => renderProductQueue(c, nav, { ...p, mode: 'all' }),
   'campaigns/new':   renderCampaignForm,
   'campaigns/edit':  renderCampaignForm,
 };
@@ -19,6 +20,7 @@ const VIEW_TITLES = {
   dashboard:         'Dashboard',
   'products/queue':  'Incoming Queue',
   'products/active': 'Active Products',
+  'products/all':    'All Products',
   'products/detail': 'Product Detail',
   'campaigns/new':   'New Campaign',
   'campaigns/edit':  'Edit Campaign',
@@ -89,6 +91,14 @@ export function mount(container) {
                 <path d="M1.5 1a.5.5 0 0 0-.5.5v3a.5.5 0 0 1-1 0v-3A1.5 1.5 0 0 1 1.5 0h3a.5.5 0 0 1 0 1h-3ZM11 .5a.5.5 0 0 1 .5-.5h3A1.5 1.5 0 0 1 16 1.5v3a.5.5 0 0 1-1 0v-3a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 1-.5-.5ZM.5 11a.5.5 0 0 1 .5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 1 0 1h-3A1.5 1.5 0 0 1 0 14.5v-3a.5.5 0 0 1 .5-.5Zm15 0a.5.5 0 0 1 .5.5v3a1.5 1.5 0 0 1-1.5 1.5h-3a.5.5 0 0 1 0-1h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 1 .5-.5Z"/>
               </svg>
               Active Products
+            </a>
+          </li>
+          <li>
+            <a class="nav-link" data-view="products/all" href="#">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 2h2v2H2V2zm0 4h2v2H2V6zm0 4h2v2H2v-2zm4-8h8v2H6V2zm0 4h8v2H6V6zm0 4h8v2H6v-2z"/>
+              </svg>
+              All Products
             </a>
           </li>
           <li>
