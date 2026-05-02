@@ -523,7 +523,7 @@ async function testStep8_DynamicOverrides() {
   _testProductIds.add(productId);
   await safeCleanup(productId);
 
-  const sku = 'E2E-OVR-001';
+  const sku = await generateProductSKU('Ring', 'Gold');
   await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_ADMIN' });
 
   // 1. Super Admin disables Admin approve transition
@@ -573,7 +573,8 @@ async function testStep9_ViolationLogging() {
   _testProductIds.add(productId);
   await safeCleanup(productId);
 
-  await DB.add('products', { ...makeProduct(productId, 'E2E-LOG-001'), status: 'PENDING_SALES' });
+  const sku = await generateProductSKU('Earring', 'Gold');
+  await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_SALES' });
 
   // MANUFACTURER attempts to approve PENDING_SALES
   await Auth.setCurrentUser(MFR_USER);
