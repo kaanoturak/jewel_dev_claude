@@ -3,7 +3,7 @@ import { getCurrentUser }              from '../../modules/auth/index.js';
 import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/utils/index.js';
 
 // Statuses that allow the manufacturer to edit the product
-const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN', 'REVISION_REQUESTED_BY_SALES']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ async function fetchMyProducts() {
 function renderStatCards(container, products) {
   const total     = products.length;
   const revisions = products.filter((p) =>
-    p.status === 'REVISION_REQUESTED_BY_ADMIN' || p.status === 'REVISION_REQUESTED_BY_SALES'
+    p.status === 'REVISION_REQUESTED_BY_ADMIN'
   ).length;
   const submitted = products.filter((p) => p.status === 'PENDING_ADMIN').length;
 
@@ -63,8 +63,7 @@ function renderStatCards(container, products) {
 
 function renderRevisionSection(container, products, navigate) {
   const revisions = products.filter((p) =>
-    p.status === 'REVISION_REQUESTED_BY_ADMIN' ||
-    p.status === 'REVISION_REQUESTED_BY_SALES'
+    p.status === 'REVISION_REQUESTED_BY_ADMIN'
   );
   if (revisions.length === 0) return;
 
@@ -79,7 +78,7 @@ function renderRevisionSection(container, products, navigate) {
 
   const list = section.querySelector('#revision-list');
   for (const product of revisions) {
-    const byLabel = product.status === 'REVISION_REQUESTED_BY_SALES' ? 'Sales' : 'Admin';
+    const byLabel = 'Admin';
     const row = document.createElement('div');
     row.className = 'revision-item';
     row.innerHTML = `

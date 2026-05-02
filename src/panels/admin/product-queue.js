@@ -6,7 +6,11 @@ import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/uti
 async function _fetchProducts(mode) {
   let products;
   if (mode === 'queue') {
-    products = await DB.queryByIndex('products', 'status', 'PENDING_ADMIN');
+    const [pending, salesRevision] = await Promise.all([
+      DB.queryByIndex('products', 'status', 'PENDING_ADMIN'),
+      DB.queryByIndex('products', 'status', 'REVISION_REQUESTED_BY_SALES'),
+    ]);
+    products = [...(pending || []), ...(salesRevision || [])];
   } else {
     products = await DB.getAll('products');
   }
