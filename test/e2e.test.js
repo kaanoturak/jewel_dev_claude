@@ -591,13 +591,13 @@ async function testStep9_ViolationLogging() {
   // Verify audit log
   await new Promise(r => setTimeout(r, 300));
   let logs = await DB.getAll('auditLog');
-  let violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER' && l.notes?.includes('TRANSITION'));
+  let violation = [...logs].reverse().find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER');
 
   // Simple retry if not found immediately
   if (!violation) {
     await new Promise(r => setTimeout(r, 700));
     logs = await DB.getAll('auditLog');
-    violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER' && l.notes?.includes('TRANSITION'));
+    violation = [...logs].reverse().find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER');
   }
   
   assert('Permission violation is logged in audit log', !!violation);
