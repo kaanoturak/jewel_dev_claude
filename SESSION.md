@@ -19,8 +19,8 @@
 - Full 4-role lifecycle working: MANUFACTURER → ADMIN → SALES → SUPER_ADMIN
 - All workflow transitions enforced by both auth (canTransition) and state machine (ALLOWED_TRANSITIONS)
 - All role panels fully implemented with read/write views, forms, and action bars
-- Test suite: db.test.js (40 checks), e2e.test.js (6 test groups, full lifecycle)
-- No known bugs
+- Test suite: db.test.js (40 checks), e2e.test.js (13 test groups, full lifecycle + edge cases)
+- All audit-identified bugs resolved (see Post-Phase Fixes section below)
 
 ## Completed
 ### Phase 0 — Core
@@ -89,8 +89,34 @@
 - [x] modules/workflow/index.js — REVISION_REQUESTED_BY_SALES routes to `['PENDING_ADMIN', 'ARCHIVED']`
 - [x] test/e2e.test.js — testStep6 covers full Sales revision loop through PENDING_ADMIN
 
+### Audit Batch Fixes (post-audit session)
+- [x] BUG-001 — sales/product-detail.js: `_collectPricing` now uses scoped `pricingContent.querySelector()` (was `document.getElementById()`)
+- [x] BUG-002 — sales/product-detail.js: campaign pre-selection and save now use `activeCampaignId` (was `campaignId`)
+- [x] BUG-003 — sales/product-detail.js: `savePricing()` guard changed to `price == null || price < 0`; inline validation via `SALES_PRICING_SCHEMA`
+- [x] BUG-004 — admin/product-queue.js: N+1 thumbnail replaced with parallel `queryByIndex` per product
+- [x] BUG-005 — auth/index.js: `canDo` and `canEdit` accept `{ silent: true }` option; violation not logged for UI visibility checks
+- [x] BUG-006 — logger.js + auth/index.js: `logViolation` now accepts `userId` param; all callers pass `_currentUser?.userId`
+- [x] BUG-007 — manufacturer/product-form.js: `_saving` flag with try/finally prevents double-save race; save button also guards
+- [x] validator.js: `costMaterial` changed from `gt:0` to `min:0` (allow free items); `adminMarginPct` max reduced to 500; added `SALES_PRICING_SCHEMA`
+- [x] manufacturer/product-form.js: negative cost warning label in `_tabCosts()`; compareAtPrice < sellingPrice warning in sales pricing form
+- [x] campaign-form.js: non-blocking >100% discount warning with console.warn
+- [x] super-admin/index.js: added Audit Log nav item (reuses admin/audit-log.js)
+- [x] sales/index.js + product-queue.js: added All Products view (mode: 'all', PENDING_SALES + READY_FOR_ECOMMERCE)
+- [x] test/e2e.test.js: added steps 10–13 (rejection path, negative costs, campaign edge cases, double-save guard)
+
 ## Next Task — Resume Here
-Nothing remaining. All phases complete and all known issues resolved.
+Nothing remaining. All phases complete, all audit-identified bugs resolved, all critical test gaps filled.
+
+## Known Limitations (not bugs — Phase 6 scope or by design)
+- compareAtPrice warning is informational only (does not block save); pre-existing data with compareAtPrice < sellingPrice is not retroactively flagged
+- Audit log entries created before BUG-006 fix will have `userId: null` (pre-fix data, cannot be backfilled without a migration)
+- No real authentication — login screen accepts any credentials; user identity is stored in IndexedDB settings
+- No server-side persistence — all data is in browser IndexedDB, lost on clear/different browser
+- No e-commerce export — READY_FOR_ECOMMERCE status is terminal; no Shopify/WooCommerce push yet
+- No image compression — blobs stored raw; large images may stress IndexedDB on some browsers
+- No pagination — all product queries load full result sets into memory
+- No stock update UI — stock counts visible in Admin Stock view but only editable via direct DB writes
+- No notification system — revision requests are visible only when user actively opens the panel
 
 ## Key Implementation Notes
 - All workflow transitions: `import { transition } from '../../modules/workflow/index.js'`
