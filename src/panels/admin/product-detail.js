@@ -235,13 +235,15 @@ function _collectAdminCosts(container) {
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
 function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) {
-  const isAdminPending = product.status === 'PENDING_ADMIN';
+  const isAdminPending    = product.status === 'PENDING_ADMIN';
+  const isSalesRevision   = product.status === 'REVISION_REQUESTED_BY_SALES';
+  const isActionable      = isAdminPending || isSalesRevision;
 
   const bar = document.createElement('div');
   bar.style.cssText = 'position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);'
     + 'padding:14px 28px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;z-index:10';
 
-  if (!isAdminPending) {
+  if (!isActionable) {
     const note = document.createElement('p');
     note.style.cssText = 'font-size:13px;color:var(--text-muted);margin:0';
     note.textContent = `This product is ${product.status} — no actions available.`;
@@ -252,27 +254,28 @@ function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) 
 
   const user = getCurrentUser();
 
-  // ── Save costs button ──
+  // ── Save costs button (only for PENDING_ADMIN) ──
   const saveBtn = document.createElement('button');
   saveBtn.className   = 'btn btn--secondary btn--sm';
   saveBtn.textContent = 'Save Costs';
 
-  // ── Approve button ──
+  // ── Approve / Forward button ──
   const approveBtn = document.createElement('button');
   approveBtn.className   = 'btn btn--primary btn--sm';
-  approveBtn.textContent = 'Approve → Sales';
+  approveBtn.textContent = isSalesRevision ? 'Forward to Sales' : 'Approve → Sales';
 
   // ── Request Revision button + inline panel ──
   const revisionBtn = document.createElement('button');
   revisionBtn.className   = 'btn btn--ghost btn--sm';
-  revisionBtn.textContent = 'Request Revision';
+  revisionBtn.textContent = isSalesRevision ? 'Request Manufacturer Revision' : 'Request Revision';
 
   // ── Reject button ──
   const rejectBtn = document.createElement('button');
   rejectBtn.className   = 'btn btn--danger btn--sm';
   rejectBtn.textContent = 'Reject';
 
-  bar.append(saveBtn, approveBtn, revisionBtn, rejectBtn);
+  if (isAdminPending) bar.append(saveBtn, approveBtn, revisionBtn, rejectBtn);
+  else                bar.append(approveBtn, revisionBtn, rejectBtn);
 
   // Inline notes panel (shared for revision + reject)
   const notesPanel = document.createElement('div');
@@ -340,15 +343,15 @@ function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) 
 
   approveBtn.addEventListener('click', async () => {
     approveBtn.disabled = true;
-    approveBtn.textContent = 'Approving…';
+    approveBtn.textContent = 'Processing…';
     try {
-      await saveCosts();
+      if (isAdminPending) await saveCosts();
       await transition(product.id, 'PENDING_SALES', user?.userId);
       navigate(returnTo);
     } catch (err) {
-      alert(`Approve failed: ${err.message}`);
+      alert(`Action failed: ${err.message}`);
       approveBtn.disabled = false;
-      approveBtn.textContent = 'Approve → Sales';
+      approveBtn.textContent = isSalesRevision ? 'Forward to Sales' : 'Approve → Sales';
     }
   });
 
