@@ -77,20 +77,25 @@ export async function render(container) {
   container.appendChild(overrideForm);
 
   searchInput.addEventListener('input', () => renderResults(searchInput.value.trim()));
+  renderResults('');
 
   function renderResults(query) {
     resultsWrap.innerHTML = '';
     overrideForm.style.display = 'none';
-    if (!query) return;
 
-    const q       = query.toLowerCase();
-    const matched = products.filter(p =>
-      (p.name || '').toLowerCase().includes(q) ||
-      (p.sku  || '').toLowerCase().includes(q)
-    ).slice(0, 10);
+    let matched;
+    if (!query) {
+      matched = products.slice(0, 15);
+    } else {
+      const q = query.toLowerCase();
+      matched = products.filter(p =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.sku  || '').toLowerCase().includes(q)
+      ).slice(0, 10);
+    }
 
     if (matched.length === 0) {
-      resultsWrap.innerHTML = `<p style="font-size:13px;color:var(--text-muted)">No products found.</p>`;
+      resultsWrap.innerHTML = `<p style="font-size:13px;color:var(--text-muted)">${query ? 'No products found.' : 'No products yet.'}</p>`;
       return;
     }
 
