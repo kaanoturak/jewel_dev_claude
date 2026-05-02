@@ -89,13 +89,19 @@
 - [x] modules/auth/index.js — MANUFACTURER_TRANSITIONS: `REVISION_REQUESTED_BY_SALES:PENDING_ADMIN` added; dead ADMIN_TRANSITIONS entry removed
 - [x] modules/workflow/index.js — REVISION_REQUESTED_BY_SALES routes to `['PENDING_ADMIN', 'ARCHIVED']`
 - [x] test/e2e.test.js — testStep6 covers full Sales revision loop through PENDING_ADMIN
-- [x] Fixed XSS vulnerability in product description rendering (Admin/Sales panels).
-- [x] Fixed parent cost multiplier logic bug in per-variant mode.
-- [x] Fixed version snapshot desynchronization during workflow transitions.
-- [x] Fixed ObjectURL memory leak on media uploads.
-- [x] Fixed DB schema upgrade logic to allow index additions on existing stores.
+- [x] Fixed XSS vulnerability in product description rendering (Admin/Sales panels) — commit 0ef6baf
+- [x] Fixed parent cost multiplier logic bug in per-variant mode — commit 0ef6baf
+- [x] Fixed version snapshot desynchronization during workflow transitions — commit 0ef6baf
+- [x] Fixed ObjectURL memory leak on media uploads — commit 0ef6baf
+- [x] Fixed DB schema upgrade logic to allow index additions on existing stores — commit 8e3d1fa
 
 ### Audit Batch Fixes (post-audit session)
+- [x] BUG-001 — XSS vulnerability resolved in Admin/Sales panels.
+- [x] BUG-002 — Per-variant cost unit calculation fixed.
+- [x] BUG-003 — Workflow snapshot data sync resolved.
+- [x] BUG-004 — ObjectURL memory leak on media upload resolved.
+- [x] BUG-005 — DB schema upgrade logic for existing stores fixed.
+- [x] test/e2e.test.js — added validation steps for cost logic and snapshot sync.
 - [x] BUG-001 — sales/product-detail.js: `_collectPricing` now uses scoped `pricingContent.querySelector()` (was `document.getElementById()`)
 - [x] BUG-002 — sales/product-detail.js: campaign pre-selection and save now use `activeCampaignId` (was `campaignId`)
 - [x] BUG-003 — sales/product-detail.js: `savePricing()` guard changed to `price == null || price < 0`; inline validation via `SALES_PRICING_SCHEMA`

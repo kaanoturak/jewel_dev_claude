@@ -111,7 +111,7 @@ function _renderDescription(product) {
     field('SEO Title',         esc(product.seoTitle   || '—')),
     field('SEO Description',   esc(product.seoDescription || '—')),
     field('Marketing Desc',    `<span style="white-space:pre-wrap">${esc(product.marketingDescription || '—')}</span>`),
-    field('Product Desc',      `<span style="white-space:pre-wrap">${product.productDescription || '—'}</span>`),
+    field('Product Desc',      `<span style="white-space:pre-wrap">${esc(product.productDescription || '—')}</span>`),
     product.materials        ? field('Materials',        esc(product.materials)) : '',
     product.careInstructions ? field('Care',             esc(product.careInstructions)) : '',
     product.searchTags?.length
