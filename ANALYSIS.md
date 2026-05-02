@@ -264,3 +264,51 @@ Gemini Code Assist Report
   14. Risk Summary
 
   Critical memory leaks, cost inflation bugs, workflow snapshot desyncs, and XSS risks have been successfully resolved. System stability is significantly improved.
+
+---
+
+## 15. Architectural Proposal: Per-Variant Pricing (Amazon-Style)
+
+**Status:** Proposed — NOT implemented. Requires explicit approval before work begins.
+
+### Request
+User requested "Amazon-style" variant pricing where the displayed price updates based on variant selection (e.g., size S = $49, size L = $59).
+
+### Current Architecture
+`sellingPrice` and `compareAtPrice` are stored on the **product** record. All variants of a product share one price. The `variants` store holds only physical attributes (`size`, `color`, `weight`, `stock`, `sku`) and per-variant manufacturing costs (`costMaterial`, `costLabor`, `costPackaging`).
+
+### Proposed Change
+Move `sellingPrice` and `compareAtPrice` to the **`variants`** store. Add optional fields:
+
+```js
+// variants store — new optional fields
+{
+  sellingPrice:   Number | null,   // overrides product.sellingPrice if set
+  compareAtPrice: Number | null,
+}
+```
+
+Use a **fallback hierarchy**: if `variant.sellingPrice` is null/undefined, fall back to `product.sellingPrice`. This maintains backwards compatibility with single-price products.
+
+### Impact Assessment
+
+| Area | Change Required |
+|------|----------------|
+| `src/core/db.js` | No schema change needed — variants store already stores arbitrary fields |
+| `src/core/engine.js` | `getEffectivePrice()` must accept an optional `variant` arg and prefer `variant.sellingPrice` over `product.sellingPrice` |
+| `src/core/validator.js` | Add optional `sellingPrice`/`compareAtPrice` to `VARIANT_SCHEMA` |
+| `src/panels/sales/product-detail.js` | Pricing form must render per-variant price rows instead of one global price |
+| `src/panels/sales/product-queue.js` | Display logic for `sellingPrice` must read from first/cheapest variant, not product |
+| `src/modules/workflow/index.js` | Readiness check for `READY_FOR_ECOMMERCE` must verify at least one variant has a selling price |
+| `src/panels/manufacturer/product-form.js` | Optional: show per-variant price preview (read-only) |
+| `test/e2e.test.js` | Step 3 and new variant-pricing step need updates |
+
+### Risk
+**Medium-high.** Every place that reads `product.sellingPrice` directly (rendering, engine, workflow validation) must be updated. Missing one silently falls back to the product-level price, which is safe but may cause confusion. Recommend a feature flag or a dedicated "enable variant pricing" toggle per product to avoid a breaking migration of existing data.
+
+### Recommended Approach
+1. Add `sellingPrice`/`compareAtPrice` to variant records (opt-in, null by default).
+2. Update `getEffectivePrice(product, campaign, variant?)` to prefer `variant.sellingPrice ?? product.sellingPrice`.
+3. Update Sales product-detail pricing form to show per-variant rows when variants exist.
+4. Update the `READY_FOR_ECOMMERCE` readiness check to require at least one variant price OR the product-level price.
+5. Ship behind a per-product toggle: `product.variantPricingEnabled = true`.
