@@ -52,8 +52,9 @@ export function logAction(entry) {
 /**
  * Log a blocked attempt due to lack of permissions.
  */
-export function logViolation(role, action, detail = {}) {
+export function logViolation(role, action, detail = {}, userId = null) {
   logAction({
+    userId:   userId,
     userRole: role,
     action:   'PERMISSION_VIOLATION',
     notes:    `Blocked: ${action}. ${JSON.stringify(detail)}`,

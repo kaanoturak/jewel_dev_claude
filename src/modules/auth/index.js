@@ -77,8 +77,9 @@ export async function setCurrentUser(user) {
 
 /**
  * Return true if `role` may perform a generic `action`.
+ * Pass { silent: true } for UI visibility checks to suppress audit log noise.
  */
-export function canDo(role, action) {
+export function canDo(role, action, { silent = false } = {}) {
   if (role === 'SUPER_ADMIN') return true;
 
   const base = ROLE_PERMISSIONS[role]?.actions.includes(action) ?? false;
@@ -87,8 +88,8 @@ export function canDo(role, action) {
 
   const allowed = override !== undefined ? override : base;
 
-  if (!allowed) {
-    logViolation(role, action);
+  if (!allowed && !silent) {
+    logViolation(role, action, {}, _currentUser?.userId);
   }
 
   return allowed;
@@ -97,8 +98,9 @@ export function canDo(role, action) {
 /**
  * Return true if `role` may directly write `fieldKey` on a product record.
  * Workflow-managed fields return false for all roles.
+ * Pass { silent: true } for UI visibility checks to suppress audit log noise.
  */
-export function canEdit(role, fieldKey) {
+export function canEdit(role, fieldKey, { silent = false } = {}) {
   if (role === 'SUPER_ADMIN') return true;
 
   const base = ROLE_PERMISSIONS[role]?.fields.includes(fieldKey) ?? false;
@@ -107,8 +109,8 @@ export function canEdit(role, fieldKey) {
 
   const allowed = override !== undefined ? override : base;
 
-  if (!allowed) {
-    logViolation(role, `EDIT_FIELD:${fieldKey}`);
+  if (!allowed && !silent) {
+    logViolation(role, `EDIT_FIELD:${fieldKey}`, {}, _currentUser?.userId);
   }
 
   return allowed;
@@ -150,7 +152,7 @@ export function canTransition(role, fromStatus, toStatus) {
   }
 
   if (!allowed) {
-    logViolation(role, `TRANSITION:${transitionKey}`, { fromStatus, toStatus });
+    logViolation(role, `TRANSITION:${transitionKey}`, { fromStatus, toStatus }, _currentUser?.userId);
   }
 
   return allowed;

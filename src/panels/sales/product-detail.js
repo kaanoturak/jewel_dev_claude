@@ -220,7 +220,7 @@ function _buildPricingForm(container, product, allCampaigns) {
     opt.textContent = c.name + (c.discountType === 'PERCENTAGE'
       ? ` (${c.discountValue}% off)`
       : ` (-${formatCurrency(c.discountValue)})`);
-    if (product.campaignId === c.id) opt.selected = true;
+    if (product.activeCampaignId === c.id) opt.selected = true;
     campaignSelect.appendChild(opt);
   }
 
@@ -264,17 +264,17 @@ function parseFloatOrNull(str) {
   return isNaN(n) ? null : n;
 }
 
-function _collectPricing() {
+function _collectPricing(scopeEl) {
   return {
-    sellingPrice:    parseFloatOrNull(document.getElementById('selling-price')?.value),
-    compareAtPrice:  parseFloatOrNull(document.getElementById('compare-at-price')?.value),
-    campaignId:      document.getElementById('campaign-select')?.value || null,
+    sellingPrice:     parseFloatOrNull(scopeEl.querySelector('#selling-price')?.value),
+    compareAtPrice:   parseFloatOrNull(scopeEl.querySelector('#compare-at-price')?.value),
+    activeCampaignId: scopeEl.querySelector('#campaign-select')?.value || null,
   };
 }
 
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
-function _buildActionBar(pageEl, product, navigate, returnTo) {
+function _buildActionBar(pageEl, product, navigate, returnTo, pricingContent) {
   const isSalesPending = product.status === 'PENDING_SALES';
 
   const bar = document.createElement('div');
@@ -326,9 +326,9 @@ function _buildActionBar(pageEl, product, navigate, returnTo) {
   let _pendingAction = null;
 
   async function savePricing() {
-    const pricing = _collectPricing();
-    if (!pricing.sellingPrice) {
-      alert('Selling Price is required before saving.');
+    const pricing = _collectPricing(pricingContent);
+    if (pricing.sellingPrice == null || pricing.sellingPrice < 0) {
+      alert('Selling Price is required and must be a non-negative number.');
       return false;
     }
     await DB.patch('products', product.id, {
@@ -487,7 +487,7 @@ export async function render(container, navigate, params = {}) {
   _buildPricingForm(content, product, allCampaigns);
 
   // Action bar (sticky bottom)
-  _buildActionBar(pageEl, product, navigate, returnTo);
+  _buildActionBar(pageEl, product, navigate, returnTo, content);
 
   container.appendChild(pageEl);
 }
