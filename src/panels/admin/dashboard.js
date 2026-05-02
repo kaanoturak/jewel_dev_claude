@@ -4,9 +4,10 @@ import { statusBadge, formatRelativeTime, truncate } from '../../shared/utils/in
 // ─── Data fetching ─────────────────────────────────────────────────────────────
 
 async function _fetchData() {
-  const [allProducts, pendingAdmin, pendingSales, ready, allVariants] = await Promise.all([
+  const [allProducts, pendingAdmin, salesRevision, pendingSales, ready, allVariants] = await Promise.all([
     DB.getAll('products'),
     DB.queryByIndex('products', 'status', 'PENDING_ADMIN'),
+    DB.queryByIndex('products', 'status', 'REVISION_REQUESTED_BY_SALES'),
     DB.queryByIndex('products', 'status', 'PENDING_SALES'),
     DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE'),
     DB.getAll('variants'),
@@ -24,10 +25,10 @@ async function _fetchData() {
     .slice(0, 10);
 
   return {
-    totalProducts: (allProducts || []).length,
-    pendingAdminCount: (pendingAdmin || []).length,
-    pendingSalesCount: (pendingSales || []).length,
-    readyCount:        (ready       || []).length,
+    totalProducts:     (allProducts    || []).length,
+    pendingAdminCount: (pendingAdmin   || []).length + (salesRevision || []).length,
+    pendingSalesCount: (pendingSales   || []).length,
+    readyCount:        (ready          || []).length,
     recentQueue,
     outOfStock,
   };
