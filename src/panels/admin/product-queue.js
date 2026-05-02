@@ -11,21 +11,24 @@ async function _fetchProducts(mode) {
     products = await DB.getAll('products');
   }
 
-  // Fetch primary image for each product
+  // Batch-load all blobs for products that have images, then resolve thumbnails
+  const productIds = (products || []).filter(p => p.images?.length).map(p => p.id);
+  const blobsByProduct = {};
+  await Promise.all(productIds.map(async id => {
+    try {
+      const blobs = await DB.queryByIndex('mediaBlobs', 'productId', id);
+      blobsByProduct[id] = Object.fromEntries((blobs || []).map(b => [b.blobId, b]));
+    } catch { /* skip missing blobs */ }
+  }));
+
   for (const p of products) {
-    if (p.images && p.images.length > 0) {
-      const primaryIdx = p.primaryImageIndex ?? 0;
-      const img = p.images[primaryIdx];
-      if (img && img.id) {
-        try {
-          const blobRecord = await DB.get('mediaBlobs', img.id);
-          if (blobRecord && blobRecord.blob) {
-            p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
-          }
-        } catch (err) {
-          console.warn(`Failed to load thumbnail for ${p.id}:`, err);
-        }
-      }
+    if (!p.images?.length) continue;
+    const primaryIdx = p.primaryImageIndex ?? 0;
+    const img = p.images[primaryIdx];
+    if (!img?.id) continue;
+    const blobRecord = blobsByProduct[p.id]?.[img.id];
+    if (blobRecord?.blob) {
+      p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
     }
   }
   return products;

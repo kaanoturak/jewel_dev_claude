@@ -27,6 +27,7 @@ let _deletedVariantIds = [];
 let _sharedCostMode    = true;
 let _activeTab         = 0;
 let _navigate          = null;
+let _saving            = false; // guard against double-save race
 
 const TABS = [
   'Basic Info', 'Media', 'Description', 'Variants', 'Costs', 'Review & Submit',
@@ -93,6 +94,9 @@ async function _loadProduct(productId) {
 // ─── Save ──────────────────────────────────────────────────────────────────────
 
 async function _saveProduct() {
+  if (_saving) return;
+  _saving = true;
+  try {
   const user = getCurrentUser();
   const now  = Date.now();
 
@@ -272,6 +276,9 @@ async function _saveProduct() {
     await DB.delete('variants', vId).catch(() => {});
   }
   _deletedVariantIds = [];
+  } finally {
+    _saving = false;
+  }
 }
 
 // ─── DOM collection (active tab → state) ──────────────────────────────────────
@@ -1073,6 +1080,7 @@ export async function render(container, navigate, params = {}) {
   saveBtn.className   = 'btn btn--secondary btn--sm';
   saveBtn.textContent = 'Save Draft';
   saveBtn.addEventListener('click', async () => {
+    if (_saving) return;
     _collect(formPage);
     saveBtn.disabled    = true;
     saveBtn.textContent = 'Saving…';
