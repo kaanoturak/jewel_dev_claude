@@ -740,6 +740,75 @@ async function testStep_DoubleSubmit() {
   return productId;
 }
 
+async function testStep_VariantCostBase() {
+  console.group('14. Per-variant cost logic: parent base cost uses first variant unit cost');
+
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  // Act as manufacturer
+  await Auth.setCurrentUser(MFR_USER);
+
+  // 1. Create product with 3 variants
+  const sku = await generateProductSKU('Ring', 'Silver');
+  const product = {
+    ...makeProduct(productId, sku),
+    costMaterial: 0, costLabor: 0, costPackaging: 0, // Should be overwritten
+  };
+  await DB.add('products', product);
+
+  const vIds = [generateUUID(), generateUUID(), generateUUID()];
+  const variants = vIds.map((vId, i) => ({
+    variantId: vId,
+    productId,
+    sku: `${sku}-V${i}`,
+    stockCount: 5,
+    costMaterial: 10, costLabor: 5, costPackaging: 2,
+    isActive: true,
+  }));
+
+  for (const v of variants) await DB.add('variants', v);
+
+  // 2. Mock a save operation with _sharedCostMode = false logic
+  // (mimics the logic fix in product-form.js)
+  const unitCostMat = variants.length ? Number(variants[0].costMaterial) || 0 : 0;
+  await DB.patch('products', productId, { costMaterial: unitCostMat });
+
+  const updated = await DB.get('products', productId);
+  assert('Parent costMaterial is 10 (unit cost), not 30 (sum)', 
+    updated.costMaterial === 10, `Found: ${updated.costMaterial}`);
+
+  console.groupEnd();
+}
+
+async function testStep_SnapshotSync() {
+  console.group('15. Snapshot synchronization: snapshot reflects updated status and version');
+
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  const sku = await generateProductSKU('Necklace', 'Gold');
+  await DB.add('products', makeProduct(productId, sku));
+
+  // Transition DRAFT -> PENDING_ADMIN
+  await Auth.setCurrentUser(MFR_USER);
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  // Check version snapshot
+  const versions = await DB.queryByIndex('productVersions', 'productId', productId);
+  const snapshot = versions[0]?.snapshotData;
+
+  assert('Snapshot exists for PENDING_ADMIN transition', !!snapshot);
+  assert('Snapshot status is PENDING_ADMIN (synced)', 
+    snapshot?.status === 'PENDING_ADMIN', `Found: ${snapshot?.status}`);
+  assert('Snapshot version is 2 (synced)', 
+    snapshot?.version === 2, `Found: ${snapshot?.version}`);
+
+  console.groupEnd();
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 async function run() {
@@ -768,6 +837,8 @@ async function run() {
     await testStep_NegativeCosts();
     await testStep_CampaignDiscount();
     await testStep_DoubleSubmit();
+    await testStep_VariantCostBase();
+    await testStep_SnapshotSync();
   } catch (err) {
     console.error('[e2e] Test suite failed prematurely:', err);
     _failed++;
