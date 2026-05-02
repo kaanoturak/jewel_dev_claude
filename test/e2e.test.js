@@ -483,7 +483,14 @@ async function testStep7_PermissionEnforcement(productId) {
   const adminTestId = generateUUID();
   _testProductIds.add(adminTestId);
   await safeCleanup(adminTestId);
-  await DB.add('products', { ...pBefore, id: adminTestId, status: 'PENDING_ADMIN' });
+  // Generate a unique SKU for this test product
+  const adminTestSku = await generateProductSKU(pBefore.category || 'Ring', pBefore.material || 'Gold');
+  await DB.add('products', { 
+    ...pBefore, 
+    id: adminTestId, 
+    sku: adminTestSku, 
+    status: 'PENDING_ADMIN' 
+  });
   
   await assertRejects(
     'SALES cannot trigger ADMIN transition (PENDING_ADMIN → PENDING_SALES)',
@@ -495,7 +502,13 @@ async function testStep7_PermissionEnforcement(productId) {
   const mfrTestId = generateUUID();
   _testProductIds.add(mfrTestId);
   await safeCleanup(mfrTestId);
-  await DB.add('products', { ...pBefore, id: mfrTestId, status: 'DRAFT' });
+  const mfrTestSku = await generateProductSKU(pBefore.category || 'Ring', pBefore.material || 'Gold');
+  await DB.add('products', { 
+    ...pBefore, 
+    id: mfrTestId, 
+    sku: mfrTestSku, 
+    status: 'DRAFT' 
+  });
 
   await assertRejects(
     'MANUFACTURER cannot skip ADMIN (DRAFT → PENDING_SALES)',
