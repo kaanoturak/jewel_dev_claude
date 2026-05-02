@@ -76,7 +76,8 @@ function _validateProductReadiness(product, toStatus) {
   }
 
   if (toStatus === 'READY_FOR_ECOMMERCE') {
-    if (!product.sellingPrice || Number(product.sellingPrice) <= 0) {
+    const hasVariantPricing = product.variantPricingEnabled === true;
+    if (!hasVariantPricing && (!product.sellingPrice || Number(product.sellingPrice) <= 0)) {
       throw new Error('Selling price must be set before marking product as ready for e-commerce');
     }
     return;
