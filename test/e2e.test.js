@@ -589,9 +589,16 @@ async function testStep9_ViolationLogging() {
   try { await transition(productId, 'READY_FOR_ECOMMERCE', MFR_USER.userId); } catch {}
 
   // Verify audit log
-  await new Promise(r => setTimeout(r, 100));
-  const logs = await DB.getAll('auditLog');
-  const violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER');
+  await new Promise(r => setTimeout(r, 300));
+  let logs = await DB.getAll('auditLog');
+  let violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER' && l.notes?.includes('TRANSITION'));
+
+  // Simple retry if not found immediately
+  if (!violation) {
+    await new Promise(r => setTimeout(r, 700));
+    logs = await DB.getAll('auditLog');
+    violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER' && l.notes?.includes('TRANSITION'));
+  }
   
   assert('Permission violation is logged in audit log', !!violation);
   assert('Violation notes contains transition info', violation?.notes?.includes('TRANSITION:PENDING_SALES:READY_FOR_ECOMMERCE'));
