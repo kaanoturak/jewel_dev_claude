@@ -96,7 +96,7 @@
 - [x] Fixed DB schema upgrade logic to allow index additions on existing stores — commit 8e3d1fa
 
 ### Audit Batch Fixes (post-audit session)
-- [x] BUG-001 — XSS vulnerability resolved in Admin/Sales panels.
+- [x] BUG-001 — XSS vulnerability resolved in Admin, Sales, and Manufacturer panels.
 - [x] BUG-002 — Per-variant cost unit calculation fixed.
 - [x] BUG-003 — Workflow snapshot data sync resolved.
 - [x] BUG-004 — ObjectURL memory leak on media upload resolved.
