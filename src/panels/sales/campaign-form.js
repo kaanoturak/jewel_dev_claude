@@ -134,11 +134,23 @@ export async function render(container, navigate, params = {}) {
   valueWrap.appendChild(valueInp);
   valueWrap.appendChild(valueHintEl);
 
-  const updateValueHint = () => {
+  const discountOverWarn = document.createElement('p');
+  discountOverWarn.id = 'campaign-discount-over-warn';
+  discountOverWarn.style.cssText = 'display:none;font-size:12px;color:var(--amber,#f59e0b);margin-top:4px';
+  discountOverWarn.textContent = 'Discount over 100% will result in a $0 effective price for all applied products.';
+  valueWrap.after(discountOverWarn);
+
+  const updateDiscountState = () => {
+    const val = parseFloat(valueInp.value);
     valueHintEl.textContent = typeSelect.value === 'PERCENTAGE' ? '%' : 'fixed amount';
+    const isOver = typeSelect.value === 'PERCENTAGE' && !isNaN(val) && val > 100;
+    discountOverWarn.style.display = isOver ? 'block' : 'none';
+    if (isOver) console.warn(`[Campaign] Discount of ${val}% exceeds 100 — effective price will floor at $0.`);
   };
-  typeSelect.addEventListener('change', updateValueHint);
-  updateValueHint();
+  const updateValueHint = () => updateDiscountState();
+  typeSelect.addEventListener('change', updateDiscountState);
+  valueInp.addEventListener('input', updateDiscountState);
+  updateDiscountState();
 
   body.appendChild(labelRow('campaign-value', 'Discount Value', valueWrap, true));
 

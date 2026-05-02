@@ -72,8 +72,8 @@ export const VARIANT_SCHEMA = {
 
 export const MANUFACTURER_COST_SCHEMA = {
   costMaterial: [
-    { rule: 'required', message: 'Material cost must be greater than 0' },
-    { rule: 'gt', value: 0, message: 'Material cost must be greater than 0' },
+    { rule: 'required', message: 'Material cost is required' },
+    { rule: 'min', value: 0, message: 'Material cost cannot be negative' },
   ],
   costLabor: [
     { rule: 'required', message: 'Labor cost is required' },
@@ -88,8 +88,8 @@ export const MANUFACTURER_COST_SCHEMA = {
 export const ADMIN_COST_SCHEMA = {
   adminMarginPct: [
     { rule: 'required', message: 'Target margin is required' },
-    { rule: 'min', value: 0,    message: 'Margin must be between 0 and 1000' },
-    { rule: 'max', value: 1000, message: 'Margin must be between 0 and 1000' },
+    { rule: 'min', value: 0,   message: 'Margin must be between 0 and 500' },
+    { rule: 'max', value: 500, message: 'Margin must be between 0 and 500' },
   ],
   // All remaining fields are optional — validated only when present
   adminTaxPct: [
@@ -104,6 +104,17 @@ export const ADMIN_COST_SCHEMA = {
   ],
   adminMiscCost: [
     { rule: 'min', value: 0, message: 'Misc cost cannot be negative' },
+  ],
+};
+
+export const SALES_PRICING_SCHEMA = {
+  sellingPrice: [
+    { rule: 'required', message: 'Selling price is required' },
+    { rule: 'min', value: 0, message: 'Selling price cannot be negative' },
+  ],
+  // Optional — only validated when a value is present
+  compareAtPrice: [
+    { rule: 'min', value: 0, message: 'Compare-at price cannot be negative' },
   ],
 };
 

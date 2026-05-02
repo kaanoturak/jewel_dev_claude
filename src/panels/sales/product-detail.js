@@ -1,5 +1,6 @@
 import DB                                        from '../../core/db.js';
 import { calculate, getEffectivePrice }          from '../../core/engine.js';
+import { validate, SALES_PRICING_SCHEMA }        from '../../core/validator.js';
 import { transition }                            from '../../modules/workflow/index.js';
 import { getCurrentUser }                        from '../../modules/auth/index.js';
 import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc } from '../../shared/utils/index.js';
@@ -197,6 +198,18 @@ function _buildPricingForm(container, product, allCampaigns) {
   body.appendChild(numField('selling-price',    'Selling Price',    product.sellingPrice,    true,  '(required)'));
   body.appendChild(numField('compare-at-price', 'Compare-at Price', product.compareAtPrice,  false, '(optional strikethrough)'));
 
+  const compareWarn = document.createElement('div');
+  compareWarn.id = 'compare-at-warning';
+  compareWarn.style.cssText = 'display:none;font-size:12px;color:var(--amber,#f59e0b);padding:4px 0 4px 184px';
+  compareWarn.textContent = 'Warning: compare-at price is lower than selling price.';
+  body.appendChild(compareWarn);
+
+  const pricingError = document.createElement('div');
+  pricingError.id = 'pricing-validation-error';
+  pricingError.className = 'alert alert--error';
+  pricingError.style.cssText = 'display:none;margin-top:10px';
+  body.appendChild(pricingError);
+
   // Campaign selector
   const campaignRow = document.createElement('div');
   campaignRow.style.cssText = 'display:grid;grid-template-columns:180px 1fr;gap:8px;align-items:center;'
@@ -241,19 +254,29 @@ function _buildPricingForm(container, product, allCampaigns) {
 
   // Live preview update
   const sellingInput    = body.querySelector('#selling-price');
+  const compareInput    = body.querySelector('#compare-at-price');
+  const compareWarnEl   = body.querySelector('#compare-at-warning');
   const effectiveEl     = body.querySelector('#effective-preview');
 
   function updatePreview() {
-    const sellingPrice = parseFloatOrNull(sellingInput.value);
+    const sellingPrice    = parseFloatOrNull(sellingInput.value);
+    const compareAtPrice  = parseFloatOrNull(compareInput.value);
     const selectedCampaignId = campaignSelect.value;
     const campaign = eligibleCampaigns.find(c => c.id === selectedCampaignId) || null;
 
     const draft = { ...product, sellingPrice };
     const eff   = getEffectivePrice(draft, campaign);
     effectiveEl.textContent = eff != null ? formatCurrency(eff) : '—';
+
+    if (compareAtPrice != null && sellingPrice != null && compareAtPrice < sellingPrice) {
+      compareWarnEl.style.display = 'block';
+    } else {
+      compareWarnEl.style.display = 'none';
+    }
   }
 
   sellingInput.addEventListener('input', updatePreview);
+  compareInput.addEventListener('input', updatePreview);
   campaignSelect.addEventListener('change', updatePreview);
   updatePreview();
 }
@@ -327,10 +350,17 @@ function _buildActionBar(pageEl, product, navigate, returnTo, pricingContent) {
 
   async function savePricing() {
     const pricing = _collectPricing(pricingContent);
-    if (pricing.sellingPrice == null || pricing.sellingPrice < 0) {
-      alert('Selling Price is required and must be a non-negative number.');
+    const errEl = pricingContent.querySelector('#pricing-validation-error');
+
+    const { valid, errors } = validate(SALES_PRICING_SCHEMA, pricing);
+    if (!valid) {
+      const msgs = Object.values(errors).flat();
+      errEl.innerHTML = msgs.map(m => `<p style="margin:2px 0">${esc(m)}</p>`).join('');
+      errEl.style.display = 'block';
       return false;
     }
+    errEl.style.display = 'none';
+
     await DB.patch('products', product.id, {
       ...pricing,
       updatedBy: user?.userId,

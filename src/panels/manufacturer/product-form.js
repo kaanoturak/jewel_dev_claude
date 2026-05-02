@@ -833,14 +833,21 @@ function _tabCosts() {
       You will not see the final transfer price.
     </div>`;
 
+  const negWarn = document.createElement('div');
+  negWarn.id = 'cost-neg-warning';
+  negWarn.style.cssText = 'display:none;font-size:12px;color:var(--red,#ef4444);margin-top:6px';
+  negWarn.textContent = 'Cost values cannot be negative.';
+  d.querySelector('.cost-calc').before(negWarn);
+
   const update = () => {
-    const mv = parseFloat(d.querySelector('#f-cost-mat')?.value) || 0;
-    const lv = parseFloat(d.querySelector('#f-cost-lab')?.value) || 0;
-    const pv = parseFloat(d.querySelector('#f-cost-pkg')?.value) || 0;
-    d.querySelector('#cc-m').textContent = formatCurrency(mv);
-    d.querySelector('#cc-l').textContent = formatCurrency(lv);
-    d.querySelector('#cc-p').textContent = formatCurrency(pv);
-    d.querySelector('#cc-t').textContent = formatCurrency(mv + lv + pv);
+    const mv = parseFloat(d.querySelector('#f-cost-mat')?.value) ?? 0;
+    const lv = parseFloat(d.querySelector('#f-cost-lab')?.value) ?? 0;
+    const pv = parseFloat(d.querySelector('#f-cost-pkg')?.value) ?? 0;
+    d.querySelector('#cc-m').textContent = formatCurrency(Math.max(0, mv));
+    d.querySelector('#cc-l').textContent = formatCurrency(Math.max(0, lv));
+    d.querySelector('#cc-p').textContent = formatCurrency(Math.max(0, pv));
+    d.querySelector('#cc-t').textContent = formatCurrency(Math.max(0, mv) + Math.max(0, lv) + Math.max(0, pv));
+    negWarn.style.display = (mv < 0 || lv < 0 || pv < 0) ? 'block' : 'none';
   };
   d.querySelector('#f-cost-mat').addEventListener('input', update);
   d.querySelector('#f-cost-lab').addEventListener('input', update);
