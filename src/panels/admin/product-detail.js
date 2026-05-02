@@ -2,7 +2,7 @@ import DB                              from '../../core/db.js';
 import { calculate }                   from '../../core/engine.js';
 import { transition }                  from '../../modules/workflow/index.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
-import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc } from '../../shared/utils/index.js';
+import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc, safeHtml } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ function _renderProductHeader(product) {
 function _renderProductInfo(product) {
   const rows = [
     field('Description', product.productDescription
-      ? `<span style="white-space:pre-wrap">${esc(product.productDescription)}</span>` : ''),
+      ? `<div style="line-height:1.6">${safeHtml(product.productDescription)}</div>` : ''),
     field('SEO Title',   esc(product.seoTitle || '')),
     field('Category',    esc(product.category || '—')),
     field('Material',    esc(product.material || '—')),

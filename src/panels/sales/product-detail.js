@@ -3,7 +3,7 @@ import { calculate, getEffectivePrice }          from '../../core/engine.js';
 import { validate, SALES_PRICING_SCHEMA }        from '../../core/validator.js';
 import { transition }                            from '../../modules/workflow/index.js';
 import { getCurrentUser }                        from '../../modules/auth/index.js';
-import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc } from '../../shared/utils/index.js';
+import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc, safeHtml } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ function _renderProductInfo(product) {
   descLabel.textContent = 'Description';
   const descDiv = document.createElement('div');
   descDiv.style.cssText = 'line-height:1.6;color:var(--text);font-weight:500;word-break:break-word';
-  descDiv.innerHTML = esc(product.productDescription || '—');
+  descDiv.innerHTML = safeHtml(product.productDescription || '—');
   descRow.appendChild(descLabel);
   descRow.appendChild(descDiv);
   body.appendChild(descRow);

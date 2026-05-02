@@ -127,3 +127,16 @@ export function esc(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+/**
+ * Sanitize user-supplied HTML for safe innerHTML rendering.
+ * Strips <script> blocks, event-handler attributes, and javascript: URIs
+ * while preserving basic formatting tags (p, b, ul, li, etc.).
+ */
+export function safeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
+    .replace(/javascript\s*:/gi, 'nojs:');
+}
