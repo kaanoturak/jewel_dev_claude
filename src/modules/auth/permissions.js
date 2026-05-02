@@ -45,7 +45,6 @@ export const ROLE_PERMISSIONS = {
     transitions: [
       'DRAFT:PENDING_ADMIN',
       'REVISION_REQUESTED_BY_ADMIN:PENDING_ADMIN',
-      'REVISION_REQUESTED_BY_SALES:PENDING_ADMIN',
     ],
     panels: ['manufacturer'],
   },
@@ -63,6 +62,9 @@ export const ROLE_PERMISSIONS = {
       'PENDING_ADMIN:PENDING_SALES',
       'PENDING_ADMIN:REVISION_REQUESTED_BY_ADMIN',
       'PENDING_ADMIN:REJECTED',
+      'REVISION_REQUESTED_BY_SALES:PENDING_SALES',
+      'REVISION_REQUESTED_BY_SALES:REVISION_REQUESTED_BY_ADMIN',
+      'REVISION_REQUESTED_BY_SALES:REJECTED',
       '*:ARCHIVED', // Wildcard handled in canTransition
     ],
     panels: ['admin'],
