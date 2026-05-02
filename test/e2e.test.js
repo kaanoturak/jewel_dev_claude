@@ -674,19 +674,23 @@ async function testStep_DoubleSubmit() {
   const saved = await DB.get('products', productId);
   assert('First DB.add succeeds', saved?.id === productId);
 
-  // Second add with same ID should fail (enforces uniqueness at DB layer)
-  await assertRejects(
-    'Second DB.add with same productId rejects (duplicate key)',
-    () => DB.add('products', { ...product })
-  );
+  // Second add with same ID must throw — ConstraintError is the expected behavior
+  try {
+    await DB.add('products', { ...product });
+    assert('Second DB.add rejected duplicate', false, 'expected ConstraintError — none thrown');
+  } catch (err) {
+    assert('Second DB.add rejected duplicate (ConstraintError)',
+      err.name === 'ConstraintError' || err.message?.toLowerCase().includes('uniqu'),
+      err.message);
+  }
 
   const count = (await DB.getAll('products')).filter(p => p.id === productId).length;
   assert('Only one product record exists after duplicate attempt', count === 1, String(count));
 
-  // Cleanup
-  try { await DB.delete('products', productId); } catch {}
-
   console.groupEnd();
+
+  // Return productId so the runner's finally block can clean up
+  return productId;
 }
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
@@ -709,6 +713,7 @@ async function run() {
   const productId = generateUUID();
   const sku       = await generateProductSKU('Ring', 'Gold');
 
+  let step13Id;
   try {
     await testStep1_ManufacturerCreatesAndSubmits(productId, sku);
     await testStep2_AdminCostsAndApprove(productId);
@@ -724,9 +729,11 @@ async function run() {
     await testStep_Rejection();
     await testStep_NegativeCosts();
     await testStep_CampaignDiscount();
-    await testStep_DoubleSubmit();
+    step13Id = await testStep_DoubleSubmit();
   } finally {
     await cleanup(productId);
+    // Clean up step 13 product (created inside testStep_DoubleSubmit)
+    try { if (step13Id) await DB.delete('products', step13Id); } catch {}
     // Restore whatever user was active before the test
     await Auth.init();
   }
