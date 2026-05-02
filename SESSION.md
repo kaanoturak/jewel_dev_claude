@@ -1,3 +1,11 @@
+<!-- 
+  FILE PURPOSE: ACTIVE SESSION GUIDE (LLM & Developer)
+  - Tells you where we are, what to do next, implementation status.
+  - Updated after every development task (commits, new features, fixes).
+  - For system specification, see tugu-pim-project-v1_1.md
+  - For code analysis snapshot, see Gemini Code Assist Report.md
+-->
+
 # TuguJewelry PIM — Active Session Guide
 
 ## Read this first, every session

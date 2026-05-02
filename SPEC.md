@@ -1,3 +1,11 @@
+<!-- 
+  FILE PURPOSE: SYSTEM SPECIFICATION (Single Source of Truth)
+  - Defines what the system IS: data structures, workflows, roles, validation rules.
+  - Updated only when architectural decisions change (rarely).
+  - For active development guidance, see PROMPT.md
+  - For code analysis reports, see Gemini Code Assist Report.md
+-->
+
 # TuguJewelry — Insider PIM System
 ## Complete Project Document & Architecture Guide
 **Version:** 1.0  
@@ -1107,105 +1115,105 @@ GET    /api/export/feed           — Product feed JSON
 
 ## 18. PRE-DESIGNED MODULE PLACEHOLDERS
 
-These modules are **designed but not implemented** in Phase 1–4. UI placeholders should be present but marked "Coming Soon."
+これらのモジュールは、フェーズ1-4では**設計されていますが実装されていません**。UIプレースホルダーは存在すべきですが、「近日公開」とマークされるべきです。
 
-### A. Supplier Management
-- Track raw material suppliers (brass source, packaging)
-- Link supplier to product material cost
-- Supplier contact + lead time fields
+### A. サプライヤー管理
+- 原材料サプライヤー（真鍮ソース、パッケージング）の追跡
+- サプライヤーを製品材料コストにリンク
+- サプライヤーの連絡先 + リードタイムフィールド
 
-### B. AI-Assisted Description Generator
-- Input: Product name, material, dimensions, tags
-- Output: Suggested SEO title, SEO description, marketing copy
-- Uses Anthropic API (Claude) via structured prompt
-- Manufacturer can accept, edit, or reject suggestions
+### B. AI支援記述ジェネレーター
+- 入力：製品名、材料、寸法、タグ
+- 出力：推奨SEOタイトル、SEO記述、マーケティングコピー
+- 構造化プロンプトを介してAnthropic API (Claude)を使用
+- 製造業者は提案を採用、編集、または拒否できる
 
-### C. Bulk Editing Tools
-- Select multiple products → apply status change
-- Batch price adjustment (% or fixed across selection)
-- Bulk campaign assignment
+### C. バルク編集ツール
+- 複数の製品を選択 → ステータス変更を適用
+- 選択範囲全体で一括価格調整（%または固定）
+- バルクキャンペーン割り当て
 
-### D. Analytics Dashboard (Admin)
-- Top-selling products (once connected to e-commerce)
-- Approval cycle time tracking
-- Stock velocity
-
----
-
-## 19. RECOMMENDATIONS & GAP ANALYSIS
-
-### ✅ Confirmed From Your Brief (Already Included)
-
-- Three-panel architecture with strict role isolation
-- Simple workshop cost model (not financial accounting)
-- E-commerce-ready data structures from day one
-- Product lifecycle state machine with no stage-skipping
-- Soft delete / archive only
-- All UI language in English
-- IndexedDB for offline-first operation
-- Web Worker for image processing
-
-### 🔧 Issues Found & Fixed
-
-**Issue 1 — Revision Flow Clarification**
-Your original brief sends revision requests back to "Manufacturer" from Admin, but also has Sales sending revisions back "to Admin" not to Manufacturer. This is now clarified in the state machine: Sales → Admin (not Manufacturer) for revisions. Admin decides whether to further push to Manufacturer.
-
-**Issue 2 — Stock Consistency**
-Stock lives on the variant level, not the product level. This is important because a "Size 7 Ring" may have 5 units while "Size 9" has 0. The system enforces this. Stock changes must lock atomically (no partial updates).
-
-**Issue 3 — Media Blob Separation**
-Storing image blobs directly on the product object in IndexedDB causes severe performance issues when listing products. MediaObject metadata stays on the product; actual blobs live in a dedicated `mediaBlobs` store referenced by ID.
-
-**Issue 4 — Pricing Visibility Leak**
-The original spec did not define what the Sales panel sees. It now explicitly shows only `transferPrice` (labeled "Admin Price") — never the raw cost breakdown (material, labor, etc.).
-
-### 💡 New Recommendations
-
-**Rec 1 — Revision Notes Field**
-Always require a written reason when requesting revision or rejecting. No reason = no action. This prevents back-and-forth without context.
-
-**Rec 2 — Image Alt Text**
-Every image should have an editable `altText` field. This is critical for accessibility and SEO when products go to e-commerce.
-
-**Rec 3 — compareAtPrice (Was Price)**
-Add this to the Sales pricing layer. It's a key field for e-commerce conversion and Shopify compatibility.
-
-**Rec 4 — Status Badge Consistency**
-Use the exact status strings as badges across all panels (PENDING_ADMIN, READY_FOR_ECOMMERCE, etc.). Never rename them per panel — it causes confusion during support.
-
-**Rec 5 — Minimum Image Spec**
-Add a minimum resolution check on upload (≥600px shortest side). Low-quality images will hurt the e-commerce platform's performance.
-
-**Rec 6 — Default Variant**
-If Manufacturer creates a product without explicit variants (e.g., "one size, one color"), the system should auto-create a `DEFAULT` variant. This prevents null-pointer issues downstream.
-
-**Rec 7 — Collection Field**
-Add an optional `collection` field to group products into series (e.g., "Archetype Series", "Minimal Series"). Useful for e-commerce catalog navigation and not complex to implement.
-
-**Rec 8 — Campaign End-Date Null = Open**
-Time-based campaigns with no end date should run indefinitely until manually stopped. Simpler than always requiring an end date.
+### D. 分析ダッシュボード (Admin)
+- 売れ筋製品（eコマース接続後）
+- 承認サイクルタイムの追跡
+- 在庫回転率
 
 ---
 
-## 20. GLOSSARY
+## 19. 勧告とギャップ分析
 
-| Term | Definition |
+### ✅ あなたの概要から確認済み（すでに含まれています）
+
+- 厳格な役割の分離を備えた3パネルアーキテクチャ
+- シンプルなワークショップコストモデル（財務会計ではない）
+- 初日からeコマース対応のデータ構造
+- ステージスキップのない製品ライフサイクルステートマシン
+- ソフトデリート / アーカイブのみ
+- すべてのUI言語は英語
+- オフラインファースト運用のためのIndexedDB
+- 画像処理のためのWebワーカー
+
+### 🔧 見つかった問題と修正済み
+
+**問題1 — 修正フローの明確化**
+元の概要では、管理者が「製造業者」に修正リクエストを返しますが、販売も「管理者」に修正を返し、製造業者には返さないようになっています。これは現在ステートマシンで明確化されています：販売 → 管理者（製造業者ではない）への修正。管理者はさらに製造業者にプッシュするかどうかを決定します。
+
+**問題2 — 在庫の一貫性**
+在庫は製品レベルではなく、バリアントレベルで存在します。これは、「サイズ7のリング」に5ユニットあっても、「サイズ9」には0ユニットである可能性があるため重要です。システムはこれを強制します。在庫の変更はアトミックにロックされる必要があります（部分的な更新なし）。
+
+**問題3 — メディアBlobの分離**
+IndexedDBの製品オブジェクトに画像blobを直接保存すると、製品を一覧表示する際に深刻なパフォーマンスの問題が発生します。MediaObjectメタデータは製品に残りますが、実際のblobはIDによって参照される専用の`mediaBlobs`ストアに配置されます。
+
+**問題4 — 価格の可視性の漏洩**
+元の仕様では、販売パネルに何が表示されるかが定義されていませんでした。現在は、明示的に`transferPrice`（「管理者価格」とラベル付け）のみを表示し、生のコスト内訳（材料、労務など）は表示しません。
+
+### 💡 新しい勧告
+
+**勧告1 — 修正ノートフィールド**
+修正をリクエストしたり拒否したりするときは、常に書面による理由を要求してください。理由がない場合はアクションなし。これにより、コンテキストのないやり取りを防ぎます。
+
+**勧告2 — 画像の代替テキスト**
+すべての画像には編集可能な`altText`フィールドが必要です。これは、製品がeコマースに送られる際のアクセシビリティとSEOにとって重要です。
+
+**勧告3 — compareAtPrice (以前の価格)**
+これを販売価格レイヤーに追加します。これはeコマースのコンバージョンとShopifyの互換性のための重要なフィールドです。
+
+**勧告4 — ステータスバッジの一貫性**
+すべてのパネルで正確なステータス文字列をバッジとして使用してください（PENDING_ADMIN、READY_FOR_ECOMMERCEなど）。パネルごとに名前を変更しないでください。サポート中に混乱を招きます。
+
+**勧告5 — 最小画像仕様**
+アップロード時に最小解像度チェックを追加してください（最短辺で600px以上）。低品質の画像はeコマースプラットフォームのパフォーマンスを低下させます。
+
+**勧告6 — デフォルトバリアント**
+製造業者が明示的なバリアント（「フリーサイズ、1色」など）なしで製品を作成した場合、システムは`DEFAULT`バリアントを自動作成する必要があります。これにより、下流でのヌルポインタの問題が防止されます。
+
+**勧告7 — コレクションフィールド**
+製品をシリーズ（例：「Archetype Series」、「Minimal Series」）にグループ化するためのオプションの`collection`フィールドを追加します。eコマースカタログのナビゲーションに便利で、実装も複雑ではありません。
+
+**勧告8 — キャンペーン終了日Null = 無期限**
+終了日のない時間ベースのキャンペーンは、手動で停止されるまで無期限に実行されるべきです。常に終了日を要求するよりもシンプルです。
+
+---
+
+## 20. 用語集
+
+| 用語 | 定義 |
 |------|-----------|
-| **Insider PIM** | The private internal system described in this document |
-| **E-Commerce Platform** | The future customer-facing store — Phase 2, not in scope |
-| **Manufacturer** | The workshop/artisan who makes the products |
-| **Transfer Price** | The admin-calculated price sent to Sales (including all admin cost layers) |
-| **Effective Price** | The actual final price a customer would see (after campaigns) |
-| **State Machine** | The strict workflow of product statuses — no skipping stages |
-| **Soft Delete** | Archiving a record rather than deleting it permanently |
-| **Variant** | A specific version of a product (e.g., different size or color) |
-| **Version Snapshot** | A full copy of product data saved at each status transition |
-| **Audit Log** | A record of every action taken in the system |
-| **READY_FOR_ECOMMERCE** | Terminal approved state — product is ready to be published |
-| **SUPER_ADMIN** | Unrestricted role — can override any workflow |
+| **Insider PIM** | このドキュメントで説明されているプライベートな内部システム |
+| **E-Commerce Platform** | 将来の顧客向けストア — フェーズ2、範囲外 |
+| **Manufacturer** | 製品を作るワークショップ/職人 |
+| **Transfer Price** | 管理者が計算して販売に送信する価格（すべての管理者コストレイヤーを含む） |
+| **Effective Price** | 顧客が実際に目にする最終価格（キャンペーン後） |
+| **State Machine** | 製品ステータスの厳格なワークフロー — ステージスキップなし |
+| **Soft Delete** | レコードを完全に削除するのではなく、アーカイブすること |
+| **Variant** | 製品の特定のバージョン（例：異なるサイズや色） |
+| **Version Snapshot** | 各ステータス遷移時に保存される製品データの完全なコピー |
+| **Audit Log** | システムで行われたすべてのアクションの記録 |
+| **READY_FOR_ECOMMERCE** | 承認済みの最終状態 — 製品を公開する準備ができている |
+| **SUPER_ADMIN** | 制限のない役割 — あらゆるワークフローをオーバーライドできる |
 
 ---
 
-*Document prepared for TuguJewelry Insider PIM v1.0*  
-*All e-commerce features explicitly deferred to Phase 5.*  
-*Development sequence: Phase 0 (Schema) → Phase 1 (Manufacturer) → Phase 2 (Admin) → Phase 3 (Sales) → Phase 4 (Super Admin)*
+*TuguJewelry Insider PIM v1.0用に作成されたドキュメント*  
+*すべてのeコマース機能はフェーズ5に明示的に延期されました。*  
+*開発シーケンス：フェーズ0（スキーマ）→ フェーズ1（製造業者）→ フェーズ2（管理者）→ フェーズ3（販売）→ フェーズ4（スーパー管理者）*

@@ -1,3 +1,12 @@
+<!-- 
+  FILE PURPOSE: CODE ANALYSIS REPORT (Audit / External Documentation)
+  - Derives current system behaviour from actual code (not assumptions).
+  - Confirms constraints, permissions, workflow, data flow.
+  - Updated after major feature completions or on request.
+  - For system spec, see tugu-pim-project-v1_1.md
+  - For active development, see PROMPT.md
+-->
+
 Gemini Code Assist Report
 
   1. Context
@@ -162,8 +171,11 @@ Gemini Code Assist Report
 
   ---
 
-  8. Permission Matrix
+  8. Permission Matrix & Dynamic Governance
 
+  The system employs a Hybrid Permission Model: Static Role Definitions (defined in code) augmented by Dynamic Overrides (persisted in IndexedDB).
+
+  8.1 Static Permission Matrix (Base Rules)
   ┌─────────────────────┬──────────────┬───────┬───────┬─────────────┐
   │ Action              │ Manufacturer │ Admin │ Sales │ Super Admin │
   ├─────────────────────┼──────────────┼───────┼───────┼─────────────┤
@@ -181,43 +193,68 @@ Gemini Code Assist Report
   │ Archive Product     │ NO           │ YES   │ NO    │ YES         │
   │ Override Status     │ NO           │ NO    │ NO    │ YES         │
   │ Manage Users        │ NO           │ NO    │ NO    │ YES         │
+  │ Toggle Permissions  │ NO           │ NO    │ NO    │ YES         │
   └─────────────────────┴──────────────┴───────┴───────┴─────────────┘
+
+  8.2 Dynamic Permission Control (Phase 4.5)
+  A Super Admin can dynamically grant or revoke any Action, Field Edit, or Transition for any role via the "Override" panel.
+   * Persistence: Overrides are stored in the 'settings' store and take precedence over static definitions in src/modules/auth/permissions.js.
+   * Violation Logging: Unauthorized attempts are captured via logViolation() and visible in the Audit Log, even if the UI prevents the action.
+   * Override Logging: All dynamic permission changes are logged via logOverride() with the ID of the Super Admin who performed them.
+
   ---
 
   9. Data Flow Mapping
 
   Data Evolution:
    1. Manufacturer Layer: Provides SKU, Name, Descriptions, Media, Variants, and Base Costs (costMaterial, costLabor, costPackaging).
-   2. Admin Layer: Adds adminTaxPct, adminMarginPct, and flat costs. The system computes transferPrice (Base Cost adjusted for tax/costs then multiplied by
-      margin).
-   3. Sales Layer: Adds sellingPrice, compareAtPrice, and activeCampaignId.
-   4. Engine Layer (Computed): Computes effectivePrice at runtime by applying campaign logic to the sellingPrice.
+   2. Cost Modes: Support for "Shared Cost" (parent level) and "Per-Variant Cost" (individual layers per variant).
+   3. Admin Layer: Adds adminTaxPct, adminMarginPct, and flat costs. The system computes transferPrice.
+   4. Sales Layer: Adds sellingPrice, compareAtPrice, and activeCampaignId.
+   5. Engine Layer (Computed): Computes effectivePrice at runtime.
 
   Mutability:
    * Immutable: id, sku, createdAt, createdBy.
    * Workflow-Managed: status, version, updatedAt, revisionNotes, rejectionReason.
-   * Role-Locked: Field sets defined in src/modules/auth/index.js (e.g., MANUFACTURER_FIELDS, ADMIN_FIELDS).
+   * Role-Locked: Defined by src/modules/auth/permissions.js (can be dynamically overridden).
 
   ---
 
   10. Hidden System Constraints
 
-   * Admin Dependency: The entire system halts if Admin does not provide adminMarginPct, as the product cannot move to Sales without a calculated transferPrice.
-   * Snapshot Locking: The system takes full product snapshots (versions) only on specific transitions (PENDING_ADMIN, PENDING_SALES, READY_FOR_ECOMMERCE). Edits
-     within a state do not trigger snapshots.
-   * Stock Synchronization: While costs can be shared, stock is always variant-specific. Deleting a variant removes its stock history entirely from IndexedDB.
-   * Terminal State Recovery: Products in REJECTED or ARCHIVED cannot be modified or moved by standard users; they are effectively locked unless a SUPER_ADMIN
-     uses the override panel.
-   * Campaign Expiry: effectivePrice is calculated dynamically; if a campaign ends, the price reverts to sellingPrice automatically without a database update.
+   * Admin Dependency: The system requires adminMarginPct to compute transferPrice; without it, movement to Sales is blocked.
+   * Snapshot Locking: Snapshots are taken on transitions (PENDING_ADMIN, PENDING_SALES, READY_FOR_ECOMMERCE, ARCHIVED).
+   * Stock Synchronization: Stock is always variant-specific.
+   * Terminal State Recovery: REJECTED and ARCHIVED require SUPER_ADMIN override to return to active workflow.
+   * Revision Loop Integrity: A Sales revision (REVISION_REQUESTED_BY_SALES) must return to Manufacturer, then pass through Admin (PENDING_ADMIN) again.
 
   ---
 
-  11. Source of Truth
+  11. System Limitations
 
-  This analysis is derived directly from the following implementation files:
-   * src/modules/workflow/index.js (State machine and transitions)
-   * src/modules/auth/index.js (Role permissions and field sets)
-   * src/core/engine.js (Financial formulas)
-   * src/core/db.js (Storage schemas)
-   * src/panels/* (UI-level capabilities and restrictions)
+   * Local-First Persistence: All data is stored in the browser's IndexedDB. Clearing browser data or switching devices results in data loss.
+   * No Real Authentication: The login screen simulates authentication; identity is managed via local settings.
+   * No Background Sync: Without a backend, there is no multi-user synchronization or real-time notification system.
+   * Media Storage: Image blobs are stored raw in IndexedDB. Extreme quantities of high-resolution images may impact browser performance.
+   * Scalability: All product queries currently load full result sets; no server-side pagination or filtering is implemented.
 
+  ---
+
+  12. Roadmap: Phase 6 & Beyond (E-Commerce Integration)
+
+   * Export Adapters: Implementation of formatters for Shopify, WooCommerce, and Google Merchant Center.
+   * Stock Synchronization: Two-way sync between Insider PIM and external e-commerce platforms.
+   * Cloud Persistence: Transition from IndexedDB to a central API/Database for shared access.
+   * AI-Assisted Enrichment: Integration with LLMs (e.g., Gemini) for automated SEO and marketing copy generation.
+   * Image Optimization: Automated compression and WebP conversion on upload.
+
+  ---
+
+  13. Source of Truth
+
+  This analysis is derived directly from:
+   * src/modules/workflow/index.js (State machine)
+   * src/modules/auth/index.js & src/modules/auth/permissions.js (Permissions)
+   * src/core/engine.js (Calculations)
+   * src/core/db.js (Storage)
+   * src/panels/* (UI logic)
