@@ -445,7 +445,7 @@ async function testStep6_SalesRevisionLoop() {
   // 6. Sales can now approve to READY_FOR_ECOMMERCE
   await Auth.setCurrentUser(SALES_USER);
   // Ensure selling price is set (required for READY_FOR_ECOMMERCE)
-  await DB.patch(productId, { sellingPrice: 99 }); 
+  await DB.patch('products', productId, { sellingPrice: 99 }); 
   await transition(productId, 'READY_FOR_ECOMMERCE', SALES_USER.userId);
 
   const ready = await DB.get('products', productId);
