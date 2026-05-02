@@ -229,11 +229,11 @@ function _buildPricingForm(container, product, allCampaigns) {
   const eligibleCampaigns = (allCampaigns || []).filter(c => c.isActive);
   for (const c of eligibleCampaigns) {
     const opt = document.createElement('option');
-    opt.value = c.id;
+    opt.value = c.campaignId;
     opt.textContent = c.name + (c.discountType === 'PERCENTAGE'
       ? ` (${c.discountValue}% off)`
       : ` (-${formatCurrency(c.discountValue)})`);
-    if (product.activeCampaignId === c.id) opt.selected = true;
+    if (product.activeCampaignId === c.campaignId) opt.selected = true;
     campaignSelect.appendChild(opt);
   }
 
@@ -262,7 +262,7 @@ function _buildPricingForm(container, product, allCampaigns) {
     const sellingPrice    = parseFloatOrNull(sellingInput.value);
     const compareAtPrice  = parseFloatOrNull(compareInput.value);
     const selectedCampaignId = campaignSelect.value;
-    const campaign = eligibleCampaigns.find(c => c.id === selectedCampaignId) || null;
+    const campaign = eligibleCampaigns.find(c => c.campaignId === selectedCampaignId) || null;
 
     const draft = { ...product, sellingPrice };
     const eff   = getEffectivePrice(draft, campaign);
