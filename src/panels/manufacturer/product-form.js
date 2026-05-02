@@ -900,6 +900,7 @@ function _tabReview(formPage) {
     errBox.innerHTML = `<strong>Fix before submitting:</strong><ul style="margin-top:8px;padding-left:18px">
       ${allErrors.map(e => `<li>${esc(e)}</li>`).join('')}</ul>`;
     d.appendChild(errBox);
+    setTimeout(() => errBox.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
   }
 
   const sections = [
@@ -987,6 +988,7 @@ function _tabReview(formPage) {
       errEl.className   = 'alert alert--error';
       errEl.textContent = err.message || 'Save failed. Please try again.';
       d.prepend(errEl);
+      errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       draftBtn.textContent = 'Save Draft';
       draftBtn.disabled    = false;
       submitBtn.disabled   = allErrors.length > 0;
