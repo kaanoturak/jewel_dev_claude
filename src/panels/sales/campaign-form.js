@@ -302,7 +302,7 @@ export async function render(container, navigate, params = {}) {
         });
       } else {
         await DB.add('campaigns', {
-          id: generateUUID(),
+          campaignId: generateUUID(),
           name, discountType, discountValue, startsAt, endsAt, isActive,
           productIds, createdBy: user?.userId, createdAt: now, updatedAt: now,
         });
