@@ -3,7 +3,7 @@ import { statusBadge, formatCurrency, formatDate, esc } from '../../shared/utils
 import { transition }                  from '../../modules/workflow/index.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
 
-const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN', 'REVISION_REQUESTED_BY_SALES']);
+const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,13 +57,7 @@ function _renderAlert(product) {
         <p style="margin-top:6px;white-space:pre-wrap">${esc(product.revisionNotes)}</p>
       </div>`;
   }
-  if (product.status === 'REVISION_REQUESTED_BY_SALES' && product.revisionNotes) {
-    return `
-      <div class="alert alert--warning" style="margin-bottom:20px">
-        <strong>Revision requested by Sales:</strong>
-        <p style="margin-top:6px;white-space:pre-wrap">${esc(product.revisionNotes)}</p>
-      </div>`;
-  }
+
   if (product.status === 'REJECTED' && product.rejectionReason) {
     return `
       <div class="alert alert--error" style="margin-bottom:20px">
@@ -263,25 +257,6 @@ export async function render(container, navigate, params = {}) {
     topbar.appendChild(editBtn);
   }
 
-  if (product.status === 'REVISION_REQUESTED_BY_SALES') {
-    const resubmitBtn = document.createElement('button');
-    resubmitBtn.className   = 'btn btn--primary btn--sm';
-    resubmitBtn.textContent = 'Resubmit to Admin';
-    resubmitBtn.addEventListener('click', async () => {
-      resubmitBtn.disabled    = true;
-      resubmitBtn.textContent = 'Submitting…';
-      try {
-        const user = getCurrentUser();
-        await transition(product.id, 'PENDING_ADMIN', user.userId);
-        navigate('dashboard');
-      } catch (err) {
-        alert(`Resubmit failed: ${err.message}`);
-        resubmitBtn.disabled    = false;
-        resubmitBtn.textContent = 'Resubmit to Admin';
-      }
-    });
-    topbar.appendChild(resubmitBtn);
-  }
 
   viewPage.appendChild(topbar);
 
