@@ -177,8 +177,8 @@ function _buildAdminCostForm(container, product) {
     return wrap;
   };
 
-  body.appendChild(numField('admin-tax-pct',       'Tax %',            product.adminTaxPct,          false, '%'));
-  body.appendChild(numField('admin-margin-pct',    'Target Margin %',  product.adminMarginPct,       true,  '% (required)'));
+  body.appendChild(numField('admin-tax-pct',       'Tax %',            product.adminTaxPct    ?? 20, false, '%'));
+  body.appendChild(numField('admin-margin-pct',    'Target Margin %',  product.adminMarginPct ?? 50, true,  '% (required)'));
   body.appendChild(numField('admin-logistics',     'Logistics Cost',   product.adminLogisticsCost,   false, formatCurrency(0)));
   body.appendChild(numField('admin-marketing',     'Marketing Cost',   product.adminMarketingCost,   false, formatCurrency(0)));
   body.appendChild(numField('admin-misc',          'Misc Cost',        product.adminMiscCost,        false, formatCurrency(0)));
