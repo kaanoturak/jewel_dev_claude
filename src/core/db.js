@@ -99,13 +99,14 @@ function openDB() {
 
 function _applySchema(db) {
   for (const store of STORES) {
-    // Skip stores that already exist (handles incremental upgrades in future versions).
-    if (db.objectStoreNames.contains(store.name)) continue;
-
-    const objectStore = db.createObjectStore(store.name, store.options);
+    const objectStore = db.objectStoreNames.contains(store.name)
+      ? db.transaction.objectStore(store.name)
+      : db.createObjectStore(store.name, store.options);
 
     for (const idx of store.indexes) {
-      objectStore.createIndex(idx.name, idx.keyPath, { unique: idx.unique });
+      if (!objectStore.indexNames.contains(idx.name)) {
+        objectStore.createIndex(idx.name, idx.keyPath, { unique: idx.unique });
+      }
     }
   }
 }

@@ -258,3 +258,9 @@ Gemini Code Assist Report
    * src/core/engine.js (Calculations)
    * src/core/db.js (Storage)
    * src/panels/* (UI logic)
+
+  ---
+
+  14. Risk Summary
+
+  Hatalar düzeltildi, sistem daha stabil.

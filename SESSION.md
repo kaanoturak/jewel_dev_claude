@@ -89,6 +89,11 @@
 - [x] modules/auth/index.js — MANUFACTURER_TRANSITIONS: `REVISION_REQUESTED_BY_SALES:PENDING_ADMIN` added; dead ADMIN_TRANSITIONS entry removed
 - [x] modules/workflow/index.js — REVISION_REQUESTED_BY_SALES routes to `['PENDING_ADMIN', 'ARCHIVED']`
 - [x] test/e2e.test.js — testStep6 covers full Sales revision loop through PENDING_ADMIN
+- [x] Fixed XSS vulnerability in product description rendering (Admin/Sales panels).
+- [x] Fixed parent cost multiplier logic bug in per-variant mode.
+- [x] Fixed version snapshot desynchronization during workflow transitions.
+- [x] Fixed ObjectURL memory leak on media uploads.
+- [x] Fixed DB schema upgrade logic to allow index additions on existing stores.
 
 ### Audit Batch Fixes (post-audit session)
 - [x] BUG-001 — sales/product-detail.js: `_collectPricing` now uses scoped `pricingContent.querySelector()` (was `document.getElementById()`)

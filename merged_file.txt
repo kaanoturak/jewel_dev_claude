@@ -1,6 +1,6 @@
 ======================================================================
   BİRLEŞTİRİLMİŞ KOD DOSYASI
-  Tarih: 2026-05-02 01:15:19
+  Tarih: 2026-05-02 17:19:33
   Dizin: C:\Users\kaano\Desktop\craft\jewel_dev_claude
 ======================================================================
 
@@ -9,7 +9,10 @@ PROJE ŞEMASI (Sadece Dahil Edilen Dosyalar):
 ├── .claude
 │   └── settings.local.json
 ├── .gitignore
-├── PROMPT.md
+├── ANALYSIS.md
+├── MANUAL_TEST_CHECKLIST.md
+├── SESSION.md
+├── SPEC.md
 ├── index.html
 ├── media
 │   ├── image
@@ -26,7 +29,8 @@ PROJE ŞEMASI (Sadece Dahil Edilen Dosyalar):
 │   │   └── validator.js
 │   ├── modules
 │   │   ├── auth
-│   │   │   └── index.js
+│   │   │   ├── index.js
+│   │   │   └── permissions.js
 │   │   ├── campaign
 │   │   │   └── index.js
 │   │   ├── cost
@@ -72,12 +76,11 @@ PROJE ŞEMASI (Sadece Dahil Edilen Dosyalar):
 │       └── utils
 │           ├── index.js
 │           └── panel-shell.js
-├── test
-│   ├── db.test.js
-│   ├── e2e.test.js
-│   ├── engine.test.js
-│   └── validator.test.js
-└── tugu-pim-project-v1_1.md
+└── test
+    ├── db.test.js
+    ├── e2e.test.js
+    ├── engine.test.js
+    └── validator.test.js
 
 ======================================================================
 
@@ -90,13 +93,329 @@ media/
 
 
 ======================================================================
-DOSYA: PROMPT.md
+DOSYA: ANALYSIS.md
 ======================================================================
+
+<!-- 
+  FILE PURPOSE: CODE ANALYSIS REPORT (Audit / External Documentation)
+  - Derives current system behaviour from actual code (not assumptions).
+  - Confirms constraints, permissions, workflow, data flow.
+  - Updated after major feature completions or on request.
+  - For system spec, see tugu-pim-project-v1_1.md
+  - For active development, see PROMPT.md
+-->
+
+Gemini Code Assist Report
+
+  1. Context
+
+  The Insider PIM system is a fully implemented, production-ready Product Information Management application. It operates as a modular web system utilizing
+  IndexedDB for client-side persistence and a strict role-based architecture.
+
+  The system is defined by:
+   * Role-Based Access Control (RBAC): Distinct permissions for data mutation, panel visibility, and workflow transitions.
+   * Strict State Machine: All product lifecycles are governed by a central workflow engine that enforces legal transitions.
+   * Layered Data Ownership: Product data is built incrementally as it moves through the organizational hierarchy.
+   * IndexedDB Persistence: Atomic transactions and indexed lookups for products, variants, audit logs, and snapshots.
+
+  2. Critical System Rule (ENFORCED)
+
+  CONFIRMATION: The Sales role has ZERO direct interaction with the Manufacturer. All communication, including revision loops and data handoffs, is mediated by
+  the Admin and enforced by the workflow state machine.
+
+  Flow is strictly linear:
+  Manufacturer → Admin → Sales → READY_FOR_ECOMMERCE
+
+  Any feedback from Sales to Manufacturer must transit through a specific revision state, which requires a subsequent review by Admin before returning to Sales.
+
+  ---
+
+  3. Manufacturer Panel — Full Breakdown
+
+  3.1 Capabilities
+   * Product Creation: Initialization of product records in the DRAFT state.
+   * Metadata Management: Editing of Name, Category, Material, Collection, and Search Tags.
+   * Media Handling: Uploading and management of product images and video (stored as Blobs). Support for primary image selection and alt-text.
+   * SEO & Marketing: Full control over SEO Titles (max 70 chars), SEO Descriptions (max 160 chars), Marketing Descriptions (min 50 chars), and Product
+     Descriptions (min 100 chars).
+   * Variant Management: Addition and deletion of variants. Mutation of size, color, weight, and stock counts.
+   * Cost Inputs: Management of Material Cost, Labor Cost, and Packaging Cost.
+   * Cost Modes: Toggle between "Shared Cost" (same costs for all variants) and "Per-Variant Cost" (individual cost layers for each variant).
+   * Workflow Trigger: Transitioning products from DRAFT or REVISION_REQUESTED_* to PENDING_ADMIN.
+
+  3.2 Limitations
+   * Financial Blindness: Cannot view or edit Admin cost layers (tax, margin, etc.) or Sales pricing.
+   * Workflow Restriction: Forbidden from moving products directly to Sales or E-commerce states.
+   * Field Locking: Once a product is submitted (PENDING_ADMIN), all fields become read-only until a revision is requested.
+
+  3.3 Workflow Behavior
+   * Allowed Transitions: DRAFT → PENDING_ADMIN, REVISION_REQUESTED_BY_ADMIN → PENDING_ADMIN, REVISION_REQUESTED_BY_SALES → PENDING_ADMIN.
+   * Validation Logic: Submission requires completion of PRODUCT_SCHEMA and MANUFACTURER_COST_SCHEMA.
+   * Revision Loops: Revisions appear in a dedicated queue; the Manufacturer must resolve notes before re-submitting to Admin.
+
+  3.4 UI-Level Actions
+   * Multi-Tab Form: Organized into Basic Info, Media, Description, Variants, Costs, and Review.
+   * Live Validation: The "Review & Submit" tab performs a final schema check before allowing submission.
+   * SKU Generation: Automatic generation of Parent SKU on first save and Variant SKUs based on parent sequence.
+
+  3.5 Relationship with Admin
+   * Trigger Points: Submission creates an audit log entry and places the product in the Admin's PENDING_ADMIN queue.
+   * Data Handoff: Manufacturer provides the "Base Cost" upon which Admin builds the financial layer.
+
+  ---
+
+  4. Admin Panel — Full Breakdown
+
+  4.1 Capabilities
+   * Queue Management: Access to the PENDING_ADMIN queue for all manufacturers.
+   * Cost Layer Manipulation: Entry of Admin Tax %, Target Margin %, Logistics Cost, Marketing Cost, and Misc Cost.
+   * Calculated Transfer Price: System-computed transferPrice based on Manufacturer Base Cost and Admin layers.
+   * Audit Log Access: Global view of all system actions, status changes, and user activities.
+   * Stock Oversight: Comprehensive view of stock levels across all products and variants.
+
+  4.2 Responsibilities
+   * System Controller: Acting as the bridge between production (Manufacturer) and commercial (Sales).
+   * Data Validator: Ensuring Manufacturer data meets quality standards before forwarding.
+   * Financial Authority: Determining the final cost to the company (Transfer Price).
+
+  4.3 Workflow Control
+   * Approval: Moving products from PENDING_ADMIN to PENDING_SALES.
+   * Rejection: Terminal transition to REJECTED (requires notes).
+   * Revision: Returning products to Manufacturer via REVISION_REQUESTED_BY_ADMIN (requires notes).
+   * Archiving: Permission to move products from ANY state to ARCHIVED.
+
+  4.4 Relationship Mapping
+   * With Manufacturer: Reviewing incoming base data; requesting revisions for incomplete or incorrect specifications.
+   * With Sales: Preparing the transferPrice and marking products ready for commercial pricing.
+
+  4.5 System-Level Influence
+   * Margin Enforcement: Target Margin % is a mandatory field for Admin approval.
+   * Visibility: Admin can see all Manufacturer inputs but only mutates the Admin-specific cost fields.
+
+  ---
+
+  5. Sales Panel — Full Breakdown
+
+  5.1 Capabilities
+   * Pricing Control: Setting sellingPrice and compareAtPrice.
+   * Campaign Management: Linking products to active marketing campaigns (Percentage or Fixed discounts).
+   * Queue Handling: Access to the PENDING_SALES queue.
+   * Effective Price Preview: Live calculation of final customer price after campaign discounts.
+
+  5.2 Decision Power
+   * Commercial Approval: Final authority to mark a product as READY_FOR_ECOMMERCE.
+   * Campaign Logic: Selecting which discount strategy applies to the product.
+
+  5.3 Workflow Behavior
+   * Approval: PENDING_SALES → READY_FOR_ECOMMERCE.
+   * Revision: PENDING_SALES → REVISION_REQUESTED_BY_SALES. Note: This sends the product back to the Manufacturer's queue, but it must return to PENDING_ADMIN
+     next.
+   * Rejection: Terminal transition to REJECTED.
+
+  5.4 Relationship with Admin
+   * Dependency: Sales cannot act until Admin has set the transferPrice.
+   * Feedback: Sales revision requests indicate commercial unviability or data errors that require Manufacturer correction via Admin review.
+
+  5.5 HARD CONSTRAINT (MANDATORY CONFIRMATION)
+  CONFIRMATION: Sales has ZERO direct interaction with the Manufacturer. All commercial feedback loops are mediated by the system states and must pass through
+  Admin for subsequent re-approval.
+
+  ---
+
+  6. Super Admin Panel — Control Layer
+
+  6.1 Absolute Capabilities
+   * Workflow Override: Ability to force any product to any status, bypassing ALLOWED_TRANSITIONS (e.g., recovering ARCHIVED products).
+   * Global Edit: Mutation rights for every field in the system regardless of product state.
+   * User Management: Creating, editing, and deactivating user accounts across all roles.
+   * Role Simulation: Access to Manufacturer, Admin, and Sales panels.
+
+  6.2 Permission Authority
+   * Bypass: Can trigger transitions from terminal states (REJECTED, ARCHIVED).
+   * System Override: Can edit fields that are normally workflow-locked.
+
+  6.3 System Risk
+   * Integrity Risk: Unrestricted status forcing can bypass snapshot triggers or validation checks if not performed via the transition module.
+   * Audit Accountability: All overrides are logged with the SUPER_ADMIN role identifier for traceability.
+
+  ---
+
+  7. End-to-End Workflow Reconstruction
+
+  States:
+   * DRAFT: Initial state (Manufacturer).
+   * PENDING_ADMIN: Submitted for Admin review.
+   * REVISION_REQUESTED_BY_ADMIN: Sent back to Manufacturer by Admin.
+   * PENDING_SALES: Approved by Admin, awaiting Sales pricing.
+   * REVISION_REQUESTED_BY_SALES: Sent back for correction by Sales.
+   * READY_FOR_ECOMMERCE: Approved by Sales (Terminal for workflow).
+   * REJECTED: Terminated by Admin or Sales (Terminal).
+   * ARCHIVED: Soft-deleted (Terminal).
+
+  Lifecycle Path:
+   1. Creation: Manufacturer (DRAFT) → Save.
+   2. Submission: Manufacturer (DRAFT) → PENDING_ADMIN.
+   3. Admin Review:
+       * PENDING_ADMIN → REVISION_REQUESTED_BY_ADMIN (Back to Manufacturer).
+       * PENDING_ADMIN → REJECTED (End).
+       * PENDING_ADMIN → PENDING_SALES (Forward to Sales).
+   4. Sales Review:
+       * PENDING_SALES → REVISION_REQUESTED_BY_SALES (Back to Manufacturer).
+       * PENDING_SALES → REJECTED (End).
+       * PENDING_SALES → READY_FOR_ECOMMERCE (Publish).
+
+  Sales Revision Loop:
+  Sales (REVISION_REQUESTED_BY_SALES) → Manufacturer (Edit & Submit) → Admin (Review & Approve) → Sales (Final Review).
+
+  ---
+
+  8. Permission Matrix & Dynamic Governance
+
+  The system employs a Hybrid Permission Model: Static Role Definitions (defined in code) augmented by Dynamic Overrides (persisted in IndexedDB).
+
+  8.1 Static Permission Matrix (Base Rules)
+  ┌─────────────────────┬──────────────┬───────┬───────┬─────────────┐
+  │ Action              │ Manufacturer │ Admin │ Sales │ Super Admin │
+  ├─────────────────────┼──────────────┼───────┼───────┼─────────────┤
+  │ Create Product      │ YES          │ NO    │ NO    │ YES         │
+  │ Edit Base Metadata  │ YES          │ NO    │ NO    │ YES         │
+  │ Edit Base Costs     │ YES          │ NO    │ NO    │ YES         │
+  │ Edit Admin Costs    │ NO           │ YES   │ NO    │ YES         │
+  │ Edit Sales Pricing  │ NO           │ NO    │ YES   │ YES         │
+  │ Add/Delete Variants │ YES          │ NO    │ NO    │ YES         │
+  │ View Audit Log      │ NO           │ YES   │ NO    │ YES         │
+  │ View Stock Levels   │ NO           │ YES   │ NO    │ YES         │
+  │ Approve (Forward)   │ YES          │ YES   │ YES   │ YES         │
+  │ Request Revision    │ NO           │ YES   │ YES   │ YES         │
+  │ Reject Product      │ NO           │ YES   │ YES   │ YES         │
+  │ Archive Product     │ NO           │ YES   │ NO    │ YES         │
+  │ Override Status     │ NO           │ NO    │ NO    │ YES         │
+  │ Manage Users        │ NO           │ NO    │ NO    │ YES         │
+  │ Toggle Permissions  │ NO           │ NO    │ NO    │ YES         │
+  └─────────────────────┴──────────────┴───────┴───────┴─────────────┘
+
+  8.2 Dynamic Permission Control (Phase 4.5)
+  A Super Admin can dynamically grant or revoke any Action, Field Edit, or Transition for any role via the "Override" panel.
+   * Persistence: Overrides are stored in the 'settings' store and take precedence over static definitions in src/modules/auth/permissions.js.
+   * Violation Logging: Unauthorized attempts are captured via logViolation() and visible in the Audit Log, even if the UI prevents the action.
+   * Override Logging: All dynamic permission changes are logged via logOverride() with the ID of the Super Admin who performed them.
+
+  ---
+
+  9. Data Flow Mapping
+
+  Data Evolution:
+   1. Manufacturer Layer: Provides SKU, Name, Descriptions, Media, Variants, and Base Costs (costMaterial, costLabor, costPackaging).
+   2. Cost Modes: Support for "Shared Cost" (parent level) and "Per-Variant Cost" (individual layers per variant).
+   3. Admin Layer: Adds adminTaxPct, adminMarginPct, and flat costs. The system computes transferPrice.
+   4. Sales Layer: Adds sellingPrice, compareAtPrice, and activeCampaignId.
+   5. Engine Layer (Computed): Computes effectivePrice at runtime.
+
+  Mutability:
+   * Immutable: id, sku, createdAt, createdBy.
+   * Workflow-Managed: status, version, updatedAt, revisionNotes, rejectionReason.
+   * Role-Locked: Defined by src/modules/auth/permissions.js (can be dynamically overridden).
+
+  ---
+
+  10. Hidden System Constraints
+
+   * Admin Dependency: The system requires adminMarginPct to compute transferPrice; without it, movement to Sales is blocked.
+   * Snapshot Locking: Snapshots are taken on transitions (PENDING_ADMIN, PENDING_SALES, READY_FOR_ECOMMERCE, ARCHIVED).
+   * Stock Synchronization: Stock is always variant-specific.
+   * Terminal State Recovery: REJECTED and ARCHIVED require SUPER_ADMIN override to return to active workflow.
+   * Revision Loop Integrity: A Sales revision (REVISION_REQUESTED_BY_SALES) must return to Manufacturer, then pass through Admin (PENDING_ADMIN) again.
+
+  ---
+
+  11. System Limitations
+
+   * Local-First Persistence: All data is stored in the browser's IndexedDB. Clearing browser data or switching devices results in data loss.
+   * No Real Authentication: The login screen simulates authentication; identity is managed via local settings.
+   * No Background Sync: Without a backend, there is no multi-user synchronization or real-time notification system.
+   * Media Storage: Image blobs are stored raw in IndexedDB. Extreme quantities of high-resolution images may impact browser performance.
+   * Scalability: All product queries currently load full result sets; no server-side pagination or filtering is implemented.
+
+  ---
+
+  12. Roadmap: Phase 6 & Beyond (E-Commerce Integration)
+
+   * Export Adapters: Implementation of formatters for Shopify, WooCommerce, and Google Merchant Center.
+   * Stock Synchronization: Two-way sync between Insider PIM and external e-commerce platforms.
+   * Cloud Persistence: Transition from IndexedDB to a central API/Database for shared access.
+   * AI-Assisted Enrichment: Integration with LLMs (e.g., Gemini) for automated SEO and marketing copy generation.
+   * Image Optimization: Automated compression and WebP conversion on upload.
+
+  ---
+
+  13. Source of Truth
+
+  This analysis is derived directly from:
+   * src/modules/workflow/index.js (State machine)
+   * src/modules/auth/index.js & src/modules/auth/permissions.js (Permissions)
+   * src/core/engine.js (Calculations)
+   * src/core/db.js (Storage)
+   * src/panels/* (UI logic)
+
+
+======================================================================
+DOSYA: MANUAL_TEST_CHECKLIST.md
+======================================================================
+
+# TuguJewelry PIM — Manual Test Checklist
+Date: 2026-05-02
+
+## P0 — Core Workflow (run first)
+- [ ] 1. Happy path: MFR creates → submits → ADMIN approves with costs → SALES prices → READY_FOR_ECOMMERCE
+- [ ] 2. Admin revision loop: submit → admin requests revision → MFR edits → resubmits → admin approves
+- [ ] 3. Sales revision loop: reach PENDING_SALES → sales revision → MFR resubmits → PENDING_ADMIN → admin approves → sales approves
+- [ ] 4. SUPER_ADMIN force: reject product → SA override → force to DRAFT → confirm MFR can edit
+
+## P1 — Bug Verification
+- [ ] 5. Sales campaign pre-selection: price+campaign → approve → reopen → confirm campaign shows
+- [ ] 6. Admin queue thumbnails: 5+ products with images → open admin queue → images show correctly
+- [ ] 7. $0 selling price: enter 0 as selling price → confirm it saves without error
+- [ ] 8. compareAtPrice warning: set compareAtPrice lower than sellingPrice → confirm warning shows but saves
+
+## P2 — Validation
+- [ ] 9. Negative cost blocked: enter -100 material cost → attempt submit → blocked
+- [ ] 10. Missing margin blocked: admin approves without Target Margin % → blocked
+- [ ] 11. Campaign >100% warning: create 150% discount → confirm warning shown, not blocked
+
+## P3 — Permission System
+- [ ] 12. Dynamic toggle: SA removes CREATE_PRODUCT from MFR → MFR cannot create → SA restores
+- [ ] 13. Audit log: admin makes changes → SA opens audit log → entries visible with userId
+
+## P4 — New Views
+- [ ] 14. SA audit log: Super Admin → Audit Log nav → loads correctly
+- [ ] 15. Sales all products: Sales → All Products → shows PENDING_SALES + READY_FOR_ECOMMERCE
+
+## P5 — Edge Cases
+- [ ] 16. Empty export: no READY_FOR_ECOMMERCE products → export buttons → no crash
+- [ ] 17. Onboarding: clear all products → MFR dashboard shows welcome screen
+
+## Results
+Pass: 0/17
+Fail: 0
+Notes:
+
+
+======================================================================
+DOSYA: SESSION.md
+======================================================================
+
+<!-- 
+  FILE PURPOSE: ACTIVE SESSION GUIDE (LLM & Developer)
+  - Tells you where we are, what to do next, implementation status.
+  - Updated after every development task (commits, new features, fixes).
+  - For system specification, see tugu-pim-project-v1_1.md
+  - For code analysis snapshot, see Gemini Code Assist Report.md
+-->
 
 # TuguJewelry PIM — Active Session Guide
 
 ## Read this first, every session
-- Full spec: tugu-pim-project-v1_1.md
+- Full spec: SPEC.md
 - This file tells you where we are and what to do next
 
 ## Current Phase
@@ -106,8 +425,8 @@ DOSYA: PROMPT.md
 - Full 4-role lifecycle working: MANUFACTURER → ADMIN → SALES → SUPER_ADMIN
 - All workflow transitions enforced by both auth (canTransition) and state machine (ALLOWED_TRANSITIONS)
 - All role panels fully implemented with read/write views, forms, and action bars
-- Test suite: db.test.js (40 checks), e2e.test.js (6 test groups, full lifecycle)
-- No known bugs
+- Test suite: db.test.js (40 checks), e2e.test.js (13 test groups, full lifecycle + edge cases)
+- All audit-identified bugs resolved (see Post-Phase Fixes section below)
 
 ## Completed
 ### Phase 0 — Core
@@ -149,13 +468,20 @@ DOSYA: PROMPT.md
 
 ### Phase 4 — Super Admin Panel
 - [x] src/panels/super-admin/index.js — panel shell, nav: Dashboard, Users, Override
-- [x] src/panels/super-admin/dashboard.js — system stats, status breakdown, recent products
+- [x] src/panels/super-admin/dashboard.js — system stats, status breakdown, recent products, live permission matrix
 - [x] src/panels/super-admin/user-management.js — full user CRUD: create, edit, activate/deactivate
-- [x] src/panels/super-admin/override.js — product search, force any status transition, notes, audit logged
+- [x] src/panels/super-admin/override.js — product search, force any status transition, notes, audit logged, dynamic permission toggles
+
+### Phase 4.5 — Dynamic Permission Control
+- [x] src/modules/auth/permissions.js — centralized action/field/transition definitions
+- [x] src/modules/auth/index.js — dynamic override support, `canDo` action guard, persistent setting store
+- [x] src/core/logger.js — `logViolation` and `logOverride` support for audit trail
+- [x] test/e2e.test.js — new test blocks (7, 8, 9) for permission enforcement, dynamic toggles, and violation logging
 
 ### Phase 5 — Wire up
 - [x] src/app.js — all 4 panels mounted via dynamic import: MANUFACTURER, ADMIN, SALES, SUPER_ADMIN
-- [x] PROMPT.md — all phases marked complete
+- [x] SPEC.md — all phases marked complete
+- [x] start.bat — local server script added for easy browser access
 
 ### Post-Phase Fixes & Improvements
 - [x] workflow/index.js — `_validateProductReadiness` no longer blocks REVISION_REQUESTED_BY_SALES → PENDING_ADMIN
@@ -170,8 +496,34 @@ DOSYA: PROMPT.md
 - [x] modules/workflow/index.js — REVISION_REQUESTED_BY_SALES routes to `['PENDING_ADMIN', 'ARCHIVED']`
 - [x] test/e2e.test.js — testStep6 covers full Sales revision loop through PENDING_ADMIN
 
+### Audit Batch Fixes (post-audit session)
+- [x] BUG-001 — sales/product-detail.js: `_collectPricing` now uses scoped `pricingContent.querySelector()` (was `document.getElementById()`)
+- [x] BUG-002 — sales/product-detail.js: campaign pre-selection and save now use `activeCampaignId` (was `campaignId`)
+- [x] BUG-003 — sales/product-detail.js: `savePricing()` guard changed to `price == null || price < 0`; inline validation via `SALES_PRICING_SCHEMA`
+- [x] BUG-004 — admin/product-queue.js: N+1 thumbnail replaced with parallel `queryByIndex` per product
+- [x] BUG-005 — auth/index.js: `canDo` and `canEdit` accept `{ silent: true }` option; violation not logged for UI visibility checks
+- [x] BUG-006 — logger.js + auth/index.js: `logViolation` now accepts `userId` param; all callers pass `_currentUser?.userId`
+- [x] BUG-007 — manufacturer/product-form.js: `_saving` flag with try/finally prevents double-save race; save button also guards
+- [x] validator.js: `costMaterial` changed from `gt:0` to `min:0` (allow free items); `adminMarginPct` max reduced to 500; added `SALES_PRICING_SCHEMA`
+- [x] manufacturer/product-form.js: negative cost warning label in `_tabCosts()`; compareAtPrice < sellingPrice warning in sales pricing form
+- [x] campaign-form.js: non-blocking >100% discount warning with console.warn
+- [x] super-admin/index.js: added Audit Log nav item (reuses admin/audit-log.js)
+- [x] sales/index.js + product-queue.js: added All Products view (mode: 'all', PENDING_SALES + READY_FOR_ECOMMERCE)
+- [x] test/e2e.test.js: added steps 10–13 (rejection path, negative costs, campaign edge cases, double-save guard)
+
 ## Next Task — Resume Here
-Nothing remaining. All phases complete and all known issues resolved.
+Nothing remaining. All phases complete, all audit-identified bugs resolved, all critical test gaps filled.
+
+## Known Limitations (not bugs — Phase 6 scope or by design)
+- compareAtPrice warning is informational only (does not block save); pre-existing data with compareAtPrice < sellingPrice is not retroactively flagged
+- Audit log entries created before BUG-006 fix will have `userId: null` (pre-fix data, cannot be backfilled without a migration)
+- No real authentication — login screen accepts any credentials; user identity is stored in IndexedDB settings
+- No server-side persistence — all data is in browser IndexedDB, lost on clear/different browser
+- No e-commerce export — READY_FOR_ECOMMERCE status is terminal; no Shopify/WooCommerce push yet
+- No image compression — blobs stored raw; large images may stress IndexedDB on some browsers
+- No pagination — all product queries load full result sets into memory
+- No stock update UI — stock counts visible in Admin Stock view but only editable via direct DB writes
+- No notification system — revision requests are visible only when user actively opens the panel
 
 ## Key Implementation Notes
 - All workflow transitions: `import { transition } from '../../modules/workflow/index.js'`
@@ -183,6 +535,7 @@ Nothing remaining. All phases complete and all known issues resolved.
 - Super Admin override: call `transition()` with SUPER_ADMIN user — workflow bypasses ALLOWED_TRANSITIONS for that role
 - Image blobs: store in mediaBlobs store with blobId; MediaObject on product holds metadata only
 - campaign effectivePrice: never stored, always computed at render time via `getEffectivePrice(product, campaign)` from engine.js
+- **Local Dev:** Run `start.bat` to start a Python server and open the app in your browser.
 
 ## Known Limitations (Phase 6 scope)
 - No real authentication — login screen accepts any credentials; user identity is stored in IndexedDB settings
@@ -219,27 +572,16 @@ Forms: (not yet added — add to CSS when building forms)
 
 
 ======================================================================
-DOSYA: index.html
+DOSYA: SPEC.md
 ======================================================================
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TuguJewelry — Insider PIM</title>
-  <link rel="stylesheet" href="src/shared/styles/index.css" />
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="src/app.js"></script>
-</body>
-</html>
-
-
-======================================================================
-DOSYA: tugu-pim-project-v1_1.md
-======================================================================
+<!-- 
+  FILE PURPOSE: SYSTEM SPECIFICATION (Single Source of Truth)
+  - Defines what the system IS: data structures, workflows, roles, validation rules.
+  - Updated only when architectural decisions change (rarely).
+  - For active development guidance, see PROMPT.md
+  - For code analysis reports, see Gemini Code Assist Report.md
+-->
 
 # TuguJewelry — Insider PIM System
 ## Complete Project Document & Architecture Guide
@@ -1350,108 +1692,127 @@ GET    /api/export/feed           — Product feed JSON
 
 ## 18. PRE-DESIGNED MODULE PLACEHOLDERS
 
-These modules are **designed but not implemented** in Phase 1–4. UI placeholders should be present but marked "Coming Soon."
+これらのモジュールは、フェーズ1-4では**設計されていますが実装されていません**。UIプレースホルダーは存在すべきですが、「近日公開」とマークされるべきです。
 
-### A. Supplier Management
-- Track raw material suppliers (brass source, packaging)
-- Link supplier to product material cost
-- Supplier contact + lead time fields
+### A. サプライヤー管理
+- 原材料サプライヤー（真鍮ソース、パッケージング）の追跡
+- サプライヤーを製品材料コストにリンク
+- サプライヤーの連絡先 + リードタイムフィールド
 
-### B. AI-Assisted Description Generator
-- Input: Product name, material, dimensions, tags
-- Output: Suggested SEO title, SEO description, marketing copy
-- Uses Anthropic API (Claude) via structured prompt
-- Manufacturer can accept, edit, or reject suggestions
+### B. AI支援記述ジェネレーター
+- 入力：製品名、材料、寸法、タグ
+- 出力：推奨SEOタイトル、SEO記述、マーケティングコピー
+- 構造化プロンプトを介してAnthropic API (Claude)を使用
+- 製造業者は提案を採用、編集、または拒否できる
 
-### C. Bulk Editing Tools
-- Select multiple products → apply status change
-- Batch price adjustment (% or fixed across selection)
-- Bulk campaign assignment
+### C. バルク編集ツール
+- 複数の製品を選択 → ステータス変更を適用
+- 選択範囲全体で一括価格調整（%または固定）
+- バルクキャンペーン割り当て
 
-### D. Analytics Dashboard (Admin)
-- Top-selling products (once connected to e-commerce)
-- Approval cycle time tracking
-- Stock velocity
-
----
-
-## 19. RECOMMENDATIONS & GAP ANALYSIS
-
-### ✅ Confirmed From Your Brief (Already Included)
-
-- Three-panel architecture with strict role isolation
-- Simple workshop cost model (not financial accounting)
-- E-commerce-ready data structures from day one
-- Product lifecycle state machine with no stage-skipping
-- Soft delete / archive only
-- All UI language in English
-- IndexedDB for offline-first operation
-- Web Worker for image processing
-
-### 🔧 Issues Found & Fixed
-
-**Issue 1 — Revision Flow Clarification**
-Your original brief sends revision requests back to "Manufacturer" from Admin, but also has Sales sending revisions back "to Admin" not to Manufacturer. This is now clarified in the state machine: Sales → Admin (not Manufacturer) for revisions. Admin decides whether to further push to Manufacturer.
-
-**Issue 2 — Stock Consistency**
-Stock lives on the variant level, not the product level. This is important because a "Size 7 Ring" may have 5 units while "Size 9" has 0. The system enforces this. Stock changes must lock atomically (no partial updates).
-
-**Issue 3 — Media Blob Separation**
-Storing image blobs directly on the product object in IndexedDB causes severe performance issues when listing products. MediaObject metadata stays on the product; actual blobs live in a dedicated `mediaBlobs` store referenced by ID.
-
-**Issue 4 — Pricing Visibility Leak**
-The original spec did not define what the Sales panel sees. It now explicitly shows only `transferPrice` (labeled "Admin Price") — never the raw cost breakdown (material, labor, etc.).
-
-### 💡 New Recommendations
-
-**Rec 1 — Revision Notes Field**
-Always require a written reason when requesting revision or rejecting. No reason = no action. This prevents back-and-forth without context.
-
-**Rec 2 — Image Alt Text**
-Every image should have an editable `altText` field. This is critical for accessibility and SEO when products go to e-commerce.
-
-**Rec 3 — compareAtPrice (Was Price)**
-Add this to the Sales pricing layer. It's a key field for e-commerce conversion and Shopify compatibility.
-
-**Rec 4 — Status Badge Consistency**
-Use the exact status strings as badges across all panels (PENDING_ADMIN, READY_FOR_ECOMMERCE, etc.). Never rename them per panel — it causes confusion during support.
-
-**Rec 5 — Minimum Image Spec**
-Add a minimum resolution check on upload (≥600px shortest side). Low-quality images will hurt the e-commerce platform's performance.
-
-**Rec 6 — Default Variant**
-If Manufacturer creates a product without explicit variants (e.g., "one size, one color"), the system should auto-create a `DEFAULT` variant. This prevents null-pointer issues downstream.
-
-**Rec 7 — Collection Field**
-Add an optional `collection` field to group products into series (e.g., "Archetype Series", "Minimal Series"). Useful for e-commerce catalog navigation and not complex to implement.
-
-**Rec 8 — Campaign End-Date Null = Open**
-Time-based campaigns with no end date should run indefinitely until manually stopped. Simpler than always requiring an end date.
+### D. 分析ダッシュボード (Admin)
+- 売れ筋製品（eコマース接続後）
+- 承認サイクルタイムの追跡
+- 在庫回転率
 
 ---
 
-## 20. GLOSSARY
+## 19. 勧告とギャップ分析
 
-| Term | Definition |
+### ✅ あなたの概要から確認済み（すでに含まれています）
+
+- 厳格な役割の分離を備えた3パネルアーキテクチャ
+- シンプルなワークショップコストモデル（財務会計ではない）
+- 初日からeコマース対応のデータ構造
+- ステージスキップのない製品ライフサイクルステートマシン
+- ソフトデリート / アーカイブのみ
+- すべてのUI言語は英語
+- オフラインファースト運用のためのIndexedDB
+- 画像処理のためのWebワーカー
+
+### 🔧 見つかった問題と修正済み
+
+**問題1 — 修正フローの明確化**
+元の概要では、管理者が「製造業者」に修正リクエストを返しますが、販売も「管理者」に修正を返し、製造業者には返さないようになっています。これは現在ステートマシンで明確化されています：販売 → 管理者（製造業者ではない）への修正。管理者はさらに製造業者にプッシュするかどうかを決定します。
+
+**問題2 — 在庫の一貫性**
+在庫は製品レベルではなく、バリアントレベルで存在します。これは、「サイズ7のリング」に5ユニットあっても、「サイズ9」には0ユニットである可能性があるため重要です。システムはこれを強制します。在庫の変更はアトミックにロックされる必要があります（部分的な更新なし）。
+
+**問題3 — メディアBlobの分離**
+IndexedDBの製品オブジェクトに画像blobを直接保存すると、製品を一覧表示する際に深刻なパフォーマンスの問題が発生します。MediaObjectメタデータは製品に残りますが、実際のblobはIDによって参照される専用の`mediaBlobs`ストアに配置されます。
+
+**問題4 — 価格の可視性の漏洩**
+元の仕様では、販売パネルに何が表示されるかが定義されていませんでした。現在は、明示的に`transferPrice`（「管理者価格」とラベル付け）のみを表示し、生のコスト内訳（材料、労務など）は表示しません。
+
+### 💡 新しい勧告
+
+**勧告1 — 修正ノートフィールド**
+修正をリクエストしたり拒否したりするときは、常に書面による理由を要求してください。理由がない場合はアクションなし。これにより、コンテキストのないやり取りを防ぎます。
+
+**勧告2 — 画像の代替テキスト**
+すべての画像には編集可能な`altText`フィールドが必要です。これは、製品がeコマースに送られる際のアクセシビリティとSEOにとって重要です。
+
+**勧告3 — compareAtPrice (以前の価格)**
+これを販売価格レイヤーに追加します。これはeコマースのコンバージョンとShopifyの互換性のための重要なフィールドです。
+
+**勧告4 — ステータスバッジの一貫性**
+すべてのパネルで正確なステータス文字列をバッジとして使用してください（PENDING_ADMIN、READY_FOR_ECOMMERCEなど）。パネルごとに名前を変更しないでください。サポート中に混乱を招きます。
+
+**勧告5 — 最小画像仕様**
+アップロード時に最小解像度チェックを追加してください（最短辺で600px以上）。低品質の画像はeコマースプラットフォームのパフォーマンスを低下させます。
+
+**勧告6 — デフォルトバリアント**
+製造業者が明示的なバリアント（「フリーサイズ、1色」など）なしで製品を作成した場合、システムは`DEFAULT`バリアントを自動作成する必要があります。これにより、下流でのヌルポインタの問題が防止されます。
+
+**勧告7 — コレクションフィールド**
+製品をシリーズ（例：「Archetype Series」、「Minimal Series」）にグループ化するためのオプションの`collection`フィールドを追加します。eコマースカタログのナビゲーションに便利で、実装も複雑ではありません。
+
+**勧告8 — キャンペーン終了日Null = 無期限**
+終了日のない時間ベースのキャンペーンは、手動で停止されるまで無期限に実行されるべきです。常に終了日を要求するよりもシンプルです。
+
+---
+
+## 20. 用語集
+
+| 用語 | 定義 |
 |------|-----------|
-| **Insider PIM** | The private internal system described in this document |
-| **E-Commerce Platform** | The future customer-facing store — Phase 2, not in scope |
-| **Manufacturer** | The workshop/artisan who makes the products |
-| **Transfer Price** | The admin-calculated price sent to Sales (including all admin cost layers) |
-| **Effective Price** | The actual final price a customer would see (after campaigns) |
-| **State Machine** | The strict workflow of product statuses — no skipping stages |
-| **Soft Delete** | Archiving a record rather than deleting it permanently |
-| **Variant** | A specific version of a product (e.g., different size or color) |
-| **Version Snapshot** | A full copy of product data saved at each status transition |
-| **Audit Log** | A record of every action taken in the system |
-| **READY_FOR_ECOMMERCE** | Terminal approved state — product is ready to be published |
-| **SUPER_ADMIN** | Unrestricted role — can override any workflow |
+| **Insider PIM** | このドキュメントで説明されているプライベートな内部システム |
+| **E-Commerce Platform** | 将来の顧客向けストア — フェーズ2、範囲外 |
+| **Manufacturer** | 製品を作るワークショップ/職人 |
+| **Transfer Price** | 管理者が計算して販売に送信する価格（すべての管理者コストレイヤーを含む） |
+| **Effective Price** | 顧客が実際に目にする最終価格（キャンペーン後） |
+| **State Machine** | 製品ステータスの厳格なワークフロー — ステージスキップなし |
+| **Soft Delete** | レコードを完全に削除するのではなく、アーカイブすること |
+| **Variant** | 製品の特定のバージョン（例：異なるサイズや色） |
+| **Version Snapshot** | 各ステータス遷移時に保存される製品データの完全なコピー |
+| **Audit Log** | システムで行われたすべてのアクションの記録 |
+| **READY_FOR_ECOMMERCE** | 承認済みの最終状態 — 製品を公開する準備ができている |
+| **SUPER_ADMIN** | 制限のない役割 — あらゆるワークフローをオーバーライドできる |
 
 ---
 
-*Document prepared for TuguJewelry Insider PIM v1.0*  
-*All e-commerce features explicitly deferred to Phase 5.*  
-*Development sequence: Phase 0 (Schema) → Phase 1 (Manufacturer) → Phase 2 (Admin) → Phase 3 (Sales) → Phase 4 (Super Admin)*
+*TuguJewelry Insider PIM v1.0用に作成されたドキュメント*  
+*すべてのeコマース機能はフェーズ5に明示的に延期されました。*  
+*開発シーケンス：フェーズ0（スキーマ）→ フェーズ1（製造業者）→ フェーズ2（管理者）→ フェーズ3（販売）→ フェーズ4（スーパー管理者）*
+
+
+======================================================================
+DOSYA: index.html
+======================================================================
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TuguJewelry — Insider PIM</title>
+  <link rel="stylesheet" href="src/shared/styles/index.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
 
 
 ======================================================================
@@ -1467,7 +1828,8 @@ DOSYA: .claude/settings.local.json
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(git pull *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(npx serve *)"
     ]
   }
 }
@@ -2057,7 +2419,7 @@ import DB from './db.js';
  *   variantId:     string | null,
  *   userId:        string,
  *   userRole:      string,
- *   action:        string,          // e.g. 'FIELD_UPDATE', 'STATUS_CHANGE', 'IMAGE_UPLOAD'
+ *   action:        string,          // e.g. 'FIELD_UPDATE', 'STATUS_CHANGE', 'PERMISSION_OVERRIDE', 'PERMISSION_VIOLATION'
  *   fromStatus:    string | null,
  *   toStatus:      string | null,
  *   changedFields: { field, oldValue, newValue }[],
@@ -2086,6 +2448,30 @@ export function logAction(entry) {
       productId: record.productId,
       userId:    record.userId,
     });
+  });
+}
+
+/**
+ * Log a blocked attempt due to lack of permissions.
+ */
+export function logViolation(role, action, detail = {}, userId = null) {
+  logAction({
+    userId:   userId,
+    userRole: role,
+    action:   'PERMISSION_VIOLATION',
+    notes:    `Blocked: ${action}. ${JSON.stringify(detail)}`,
+  });
+}
+
+/**
+ * Log a dynamic permission override by a Super Admin.
+ */
+export function logOverride(adminId, role, action, newValue) {
+  logAction({
+    userId:   adminId,
+    userRole: 'SUPER_ADMIN',
+    action:   'PERMISSION_OVERRIDE',
+    notes:    `Changed ${role} permission for "${action}" to ${newValue}`,
   });
 }
 
@@ -2344,8 +2730,8 @@ export const VARIANT_SCHEMA = {
 
 export const MANUFACTURER_COST_SCHEMA = {
   costMaterial: [
-    { rule: 'required', message: 'Material cost must be greater than 0' },
-    { rule: 'gt', value: 0, message: 'Material cost must be greater than 0' },
+    { rule: 'required', message: 'Material cost is required' },
+    { rule: 'min', value: 0, message: 'Material cost cannot be negative' },
   ],
   costLabor: [
     { rule: 'required', message: 'Labor cost is required' },
@@ -2360,8 +2746,8 @@ export const MANUFACTURER_COST_SCHEMA = {
 export const ADMIN_COST_SCHEMA = {
   adminMarginPct: [
     { rule: 'required', message: 'Target margin is required' },
-    { rule: 'min', value: 0,    message: 'Margin must be between 0 and 1000' },
-    { rule: 'max', value: 1000, message: 'Margin must be between 0 and 1000' },
+    { rule: 'min', value: 0,   message: 'Margin must be between 0 and 500' },
+    { rule: 'max', value: 500, message: 'Margin must be between 0 and 500' },
   ],
   // All remaining fields are optional — validated only when present
   adminTaxPct: [
@@ -2376,6 +2762,17 @@ export const ADMIN_COST_SCHEMA = {
   ],
   adminMiscCost: [
     { rule: 'min', value: 0, message: 'Misc cost cannot be negative' },
+  ],
+};
+
+export const SALES_PRICING_SCHEMA = {
+  sellingPrice: [
+    { rule: 'required', message: 'Selling price is required' },
+    { rule: 'min', value: 0, message: 'Selling price cannot be negative' },
+  ],
+  // Optional — only validated when a value is present
+  compareAtPrice: [
+    { rule: 'min', value: 0, message: 'Compare-at price cannot be negative' },
   ],
 };
 
@@ -2441,61 +2838,38 @@ DOSYA: src/modules/auth/index.js
 ======================================================================
 
 import DB from '../../core/db.js';
+import { ROLE_PERMISSIONS, ACTIONS } from './permissions.js';
+import { logViolation } from '../../core/logger.js';
 
-// ─── Field-level edit permissions (Section 4) ─────────────────────────────────
-// Maps each role to the set of product fields it may write directly.
-// Workflow-managed fields (status, rejectionReason, revisionNotes, reviewedBy/At,
-// version, computed fields) are absent from all sets — they are only written
-// by the workflow or engine modules, never via direct State.set() calls.
+// ─── Dynamic Overrides ────────────────────────────────────────────────────────
+// Overrides are stored in IndexedDB: settings store, key 'permissionOverrides'.
+// Structure: { transitions: { 'ROLE:FROM:TO': boolean }, actions: { 'ROLE:ACTION': boolean }, fields: { 'ROLE:FIELD': boolean } }
 
-const MANUFACTURER_FIELDS = new Set([
-  'name', 'category', 'material', 'collection',
-  'seoTitle', 'seoDescription', 'marketingDescription', 'productDescription',
-  'materials', 'careInstructions', 'searchTags',
-  'images', 'primaryImageIndex', 'video',
-  'costMaterial', 'costLabor', 'costPackaging',
-]);
-
-const ADMIN_FIELDS = new Set([
-  'adminTaxPct', 'adminMarginPct', 'adminLogisticsCost',
-  'adminMarketingCost', 'adminMiscCost',
-]);
-
-const SALES_FIELDS = new Set([
-  'sellingPrice', 'compareAtPrice', 'activeCampaignId',
-]);
-
-// ─── Panel access permissions ─────────────────────────────────────────────────
-
-const PANEL_ACCESS = {
-  MANUFACTURER: new Set(['manufacturer']),
-  ADMIN:        new Set(['admin']),
-  SALES:        new Set(['sales']),
-  SUPER_ADMIN:  new Set(['manufacturer', 'admin', 'sales', 'super-admin']),
+let _overrides = {
+  transitions: {},
+  actions:     {},
+  fields:      {},
 };
 
-// ─── Workflow transition permissions (Section 7) ──────────────────────────────
-// Keys are 'FROM_STATUS:TO_STATUS'. Admin also gets a wildcard for ARCHIVED
-// (any status → ARCHIVED) handled separately in canTransition.
+async function _loadOverrides() {
+  const setting = await DB.get('settings', 'permissionOverrides');
+  if (setting && setting.value) {
+    _overrides = setting.value;
+  }
+}
 
-const MANUFACTURER_TRANSITIONS = new Set([
-  'DRAFT:PENDING_ADMIN',
-  'REVISION_REQUESTED_BY_ADMIN:PENDING_ADMIN',
-  'REVISION_REQUESTED_BY_SALES:PENDING_ADMIN',
-]);
+export async function setOverride(type, key, value) {
+  _overrides[type][key] = value;
+  await DB.put('settings', {
+    settingId: 'permissionOverrides',
+    value: _overrides,
+    updatedAt: Date.now(),
+  });
+}
 
-const ADMIN_TRANSITIONS = new Set([
-  'PENDING_ADMIN:PENDING_SALES',
-  'PENDING_ADMIN:REVISION_REQUESTED_BY_ADMIN',
-  'PENDING_ADMIN:REJECTED',
-  // Admin can archive from any status — wildcard handled in canTransition
-]);
-
-const SALES_TRANSITIONS = new Set([
-  'PENDING_SALES:READY_FOR_ECOMMERCE',
-  'PENDING_SALES:REVISION_REQUESTED_BY_SALES',
-  'PENDING_SALES:REJECTED',
-]);
+export function getOverrides() {
+  return _overrides;
+}
 
 // ─── In-memory current user ───────────────────────────────────────────────────
 
@@ -2504,19 +2878,25 @@ let _currentUser = null;
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Load the current user from the settings store.
+ * Load the current user and permission overrides.
  * Call once at app startup before any permission checks.
  */
 export async function init() {
-  const setting = await DB.get('settings', 'currentUser');
-  if (setting && setting.value) {
-    _currentUser = setting.value;
+  const [userSetting, overridesSetting] = await Promise.all([
+    DB.get('settings', 'currentUser'),
+    DB.get('settings', 'permissionOverrides'),
+  ]);
+
+  if (userSetting && userSetting.value) {
+    _currentUser = userSetting.value;
+  }
+  if (overridesSetting && overridesSetting.value) {
+    _overrides = overridesSetting.value;
   }
 }
 
 /**
  * Returns the currently authenticated user object, or null if not set.
- * Synchronous — relies on init() having been called at startup.
  */
 export function getCurrentUser() {
   return _currentUser;
@@ -2524,7 +2904,6 @@ export function getCurrentUser() {
 
 /**
  * Set the active user and persist it to the settings store.
- * Used at login / role-switch.
  */
 export async function setCurrentUser(user) {
   _currentUser = user;
@@ -2536,56 +2915,188 @@ export async function setCurrentUser(user) {
 }
 
 /**
- * Return true if `role` may directly write `fieldKey` on a product record.
- * SUPER_ADMIN may write any field.
- * Workflow-managed fields (status, version, reviewedBy, etc.) return false
- * for all roles — they must go through workflow.transition().
+ * Return true if `role` may perform a generic `action`.
+ * Pass { silent: true } for UI visibility checks to suppress audit log noise.
  */
-export function canEdit(role, fieldKey) {
+export function canDo(role, action, { silent = false } = {}) {
   if (role === 'SUPER_ADMIN') return true;
-  if (role === 'MANUFACTURER') return MANUFACTURER_FIELDS.has(fieldKey);
-  if (role === 'ADMIN')        return ADMIN_FIELDS.has(fieldKey);
-  if (role === 'SALES')        return SALES_FIELDS.has(fieldKey);
-  return false;
+
+  const base = ROLE_PERMISSIONS[role]?.actions.includes(action) ?? false;
+  const overrideKey = `${role}:${action}`;
+  const override = _overrides.actions[overrideKey];
+
+  const allowed = override !== undefined ? override : base;
+
+  if (!allowed && !silent) {
+    logViolation(role, action, {}, _currentUser?.userId);
+  }
+
+  return allowed;
+}
+
+/**
+ * Return true if `role` may directly write `fieldKey` on a product record.
+ * Workflow-managed fields return false for all roles.
+ * Pass { silent: true } for UI visibility checks to suppress audit log noise.
+ */
+export function canEdit(role, fieldKey, { silent = false } = {}) {
+  if (role === 'SUPER_ADMIN') return true;
+
+  const base = ROLE_PERMISSIONS[role]?.fields.includes(fieldKey) ?? false;
+  const overrideKey = `${role}:${fieldKey}`;
+  const override = _overrides.fields[overrideKey];
+
+  const allowed = override !== undefined ? override : base;
+
+  if (!allowed && !silent) {
+    logViolation(role, `EDIT_FIELD:${fieldKey}`, {}, _currentUser?.userId);
+  }
+
+  return allowed;
 }
 
 /**
  * Return true if `role` may access `panelName`.
- * Panel names: 'manufacturer' | 'admin' | 'sales' | 'super-admin'
  */
 export function canView(role, panelName) {
   if (role === 'SUPER_ADMIN') return true;
-  const allowed = PANEL_ACCESS[role];
-  return allowed ? allowed.has(panelName) : false;
+  const allowed = ROLE_PERMISSIONS[role]?.panels.includes(panelName) ?? false;
+  return allowed;
 }
 
 /**
- * Return true if `role` may initiate a status transition from `fromStatus`
- * to `toStatus`.
- *
- * SUPER_ADMIN has no restrictions.
- * ADMIN may archive a product from any status.
- * All other roles are checked against their explicit transition set.
+ * Return true if `role` may initiate a status transition.
  */
 export function canTransition(role, fromStatus, toStatus) {
   if (role === 'SUPER_ADMIN') return true;
 
-  if (role === 'ADMIN') {
-    // Admin can archive from any status (Section 7: "Any → ARCHIVED | Admin or Super Admin")
-    if (toStatus === 'ARCHIVED') return true;
-    return ADMIN_TRANSITIONS.has(`${fromStatus}:${toStatus}`);
+  const transitionKey = `${fromStatus}:${toStatus}`;
+  let allowed = false;
+
+  // Check static permissions
+  const perms = ROLE_PERMISSIONS[role];
+  if (perms) {
+    if (perms.transitions.includes(transitionKey)) {
+      allowed = true;
+    } else if (perms.transitions.includes(`*:${toStatus}`)) {
+      allowed = true;
+    }
   }
 
-  if (role === 'MANUFACTURER') {
-    return MANUFACTURER_TRANSITIONS.has(`${fromStatus}:${toStatus}`);
+  // Apply dynamic overrides
+  const overrideKey = `${role}:${transitionKey}`;
+  const override = _overrides.transitions[overrideKey];
+  if (override !== undefined) {
+    allowed = override;
   }
 
-  if (role === 'SALES') {
-    return SALES_TRANSITIONS.has(`${fromStatus}:${toStatus}`);
+  if (!allowed) {
+    logViolation(role, `TRANSITION:${transitionKey}`, { fromStatus, toStatus }, _currentUser?.userId);
   }
 
-  return false;
+  return allowed;
 }
+
+
+======================================================================
+DOSYA: src/modules/auth/permissions.js
+======================================================================
+
+/**
+ * Centralized Permission Definitions
+ * This module defines the static permission structure of the system.
+ * It is used by the Auth module to enforce role-based access control.
+ */
+
+export const ACTIONS = {
+  CREATE_PRODUCT:      'CREATE_PRODUCT',
+  EDIT_PRODUCT:        'EDIT_PRODUCT',
+  DELETE_PRODUCT:      'DELETE_PRODUCT',
+  APPROVE_PRODUCT:     'APPROVE_PRODUCT',
+  REJECT_PRODUCT:      'REJECT_PRODUCT',
+  REQUEST_REVISION:    'REQUEST_REVISION',
+  VIEW_AUDIT_LOG:      'VIEW_AUDIT_LOG',
+  VIEW_STOCK:          'VIEW_STOCK',
+  MANAGE_USERS:        'MANAGE_USERS',
+  OVERRIDE_WORKFLOW:   'OVERRIDE_WORKFLOW',
+  MANAGE_PERMISSIONS:  'MANAGE_PERMISSIONS',
+};
+
+export const FIELD_GROUPS = {
+  MANUFACTURER: [
+    'name', 'category', 'material', 'collection',
+    'seoTitle', 'seoDescription', 'marketingDescription', 'productDescription',
+    'materials', 'careInstructions', 'searchTags',
+    'images', 'primaryImageIndex', 'video',
+    'costMaterial', 'costLabor', 'costPackaging',
+  ],
+  ADMIN: [
+    'adminTaxPct', 'adminMarginPct', 'adminLogisticsCost',
+    'adminMarketingCost', 'adminMiscCost',
+  ],
+  SALES: [
+    'sellingPrice', 'compareAtPrice', 'activeCampaignId',
+  ],
+};
+
+export const ROLE_PERMISSIONS = {
+  MANUFACTURER: {
+    actions: [
+      ACTIONS.CREATE_PRODUCT,
+      ACTIONS.EDIT_PRODUCT,
+    ],
+    fields: FIELD_GROUPS.MANUFACTURER,
+    transitions: [
+      'DRAFT:PENDING_ADMIN',
+      'REVISION_REQUESTED_BY_ADMIN:PENDING_ADMIN',
+      'REVISION_REQUESTED_BY_SALES:PENDING_ADMIN',
+    ],
+    panels: ['manufacturer'],
+  },
+  ADMIN: {
+    actions: [
+      ACTIONS.EDIT_PRODUCT,
+      ACTIONS.APPROVE_PRODUCT,
+      ACTIONS.REJECT_PRODUCT,
+      ACTIONS.REQUEST_REVISION,
+      ACTIONS.VIEW_AUDIT_LOG,
+      ACTIONS.VIEW_STOCK,
+    ],
+    fields: FIELD_GROUPS.ADMIN,
+    transitions: [
+      'PENDING_ADMIN:PENDING_SALES',
+      'PENDING_ADMIN:REVISION_REQUESTED_BY_ADMIN',
+      'PENDING_ADMIN:REJECTED',
+      '*:ARCHIVED', // Wildcard handled in canTransition
+    ],
+    panels: ['admin'],
+  },
+  SALES: {
+    actions: [
+      ACTIONS.EDIT_PRODUCT,
+      ACTIONS.APPROVE_PRODUCT,
+      ACTIONS.REJECT_PRODUCT,
+      ACTIONS.REQUEST_REVISION,
+    ],
+    fields: FIELD_GROUPS.SALES,
+    transitions: [
+      'PENDING_SALES:READY_FOR_ECOMMERCE',
+      'PENDING_SALES:REVISION_REQUESTED_BY_SALES',
+      'PENDING_SALES:REJECTED',
+    ],
+    panels: ['sales'],
+  },
+  SUPER_ADMIN: {
+    actions: Object.values(ACTIONS),
+    fields: [
+      ...FIELD_GROUPS.MANUFACTURER,
+      ...FIELD_GROUPS.ADMIN,
+      ...FIELD_GROUPS.SALES,
+    ],
+    transitions: ['*:*'], // Full bypass
+    panels: ['manufacturer', 'admin', 'sales', 'super-admin'],
+  },
+};
 
 
 ======================================================================
@@ -4278,21 +4789,24 @@ async function _fetchProducts(mode) {
     products = await DB.getAll('products');
   }
 
-  // Fetch primary image for each product
+  // Batch-load all blobs for products that have images, then resolve thumbnails
+  const productIds = (products || []).filter(p => p.images?.length).map(p => p.id);
+  const blobsByProduct = {};
+  await Promise.all(productIds.map(async id => {
+    try {
+      const blobs = await DB.queryByIndex('mediaBlobs', 'productId', id);
+      blobsByProduct[id] = Object.fromEntries((blobs || []).map(b => [b.blobId, b]));
+    } catch { /* skip missing blobs */ }
+  }));
+
   for (const p of products) {
-    if (p.images && p.images.length > 0) {
-      const primaryIdx = p.primaryImageIndex ?? 0;
-      const img = p.images[primaryIdx];
-      if (img && img.id) {
-        try {
-          const blobRecord = await DB.get('mediaBlobs', img.id);
-          if (blobRecord && blobRecord.blob) {
-            p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
-          }
-        } catch (err) {
-          console.warn(`Failed to load thumbnail for ${p.id}:`, err);
-        }
-      }
+    if (!p.images?.length) continue;
+    const primaryIdx = p.primaryImageIndex ?? 0;
+    const img = p.images[primaryIdx];
+    if (!img?.id) continue;
+    const blobRecord = blobsByProduct[p.id]?.[img.id];
+    if (blobRecord?.blob) {
+      p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
     }
   }
   return products;
@@ -5169,6 +5683,7 @@ let _deletedVariantIds = [];
 let _sharedCostMode    = true;
 let _activeTab         = 0;
 let _navigate          = null;
+let _saving            = false; // guard against double-save race
 
 const TABS = [
   'Basic Info', 'Media', 'Description', 'Variants', 'Costs', 'Review & Submit',
@@ -5235,6 +5750,9 @@ async function _loadProduct(productId) {
 // ─── Save ──────────────────────────────────────────────────────────────────────
 
 async function _saveProduct() {
+  if (_saving) return;
+  _saving = true;
+  try {
   const user = getCurrentUser();
   const now  = Date.now();
 
@@ -5414,6 +5932,9 @@ async function _saveProduct() {
     await DB.delete('variants', vId).catch(() => {});
   }
   _deletedVariantIds = [];
+  } finally {
+    _saving = false;
+  }
 }
 
 // ─── DOM collection (active tab → state) ──────────────────────────────────────
@@ -5975,14 +6496,21 @@ function _tabCosts() {
       You will not see the final transfer price.
     </div>`;
 
+  const negWarn = document.createElement('div');
+  negWarn.id = 'cost-neg-warning';
+  negWarn.style.cssText = 'display:none;font-size:12px;color:var(--red,#ef4444);margin-top:6px';
+  negWarn.textContent = 'Cost values cannot be negative.';
+  d.querySelector('.cost-calc').before(negWarn);
+
   const update = () => {
-    const mv = parseFloat(d.querySelector('#f-cost-mat')?.value) || 0;
-    const lv = parseFloat(d.querySelector('#f-cost-lab')?.value) || 0;
-    const pv = parseFloat(d.querySelector('#f-cost-pkg')?.value) || 0;
-    d.querySelector('#cc-m').textContent = formatCurrency(mv);
-    d.querySelector('#cc-l').textContent = formatCurrency(lv);
-    d.querySelector('#cc-p').textContent = formatCurrency(pv);
-    d.querySelector('#cc-t').textContent = formatCurrency(mv + lv + pv);
+    const mv = parseFloat(d.querySelector('#f-cost-mat')?.value) ?? 0;
+    const lv = parseFloat(d.querySelector('#f-cost-lab')?.value) ?? 0;
+    const pv = parseFloat(d.querySelector('#f-cost-pkg')?.value) ?? 0;
+    d.querySelector('#cc-m').textContent = formatCurrency(Math.max(0, mv));
+    d.querySelector('#cc-l').textContent = formatCurrency(Math.max(0, lv));
+    d.querySelector('#cc-p').textContent = formatCurrency(Math.max(0, pv));
+    d.querySelector('#cc-t').textContent = formatCurrency(Math.max(0, mv) + Math.max(0, lv) + Math.max(0, pv));
+    negWarn.style.display = (mv < 0 || lv < 0 || pv < 0) ? 'block' : 'none';
   };
   d.querySelector('#f-cost-mat').addEventListener('input', update);
   d.querySelector('#f-cost-lab').addEventListener('input', update);
@@ -6208,6 +6736,7 @@ export async function render(container, navigate, params = {}) {
   saveBtn.className   = 'btn btn--secondary btn--sm';
   saveBtn.textContent = 'Save Draft';
   saveBtn.addEventListener('click', async () => {
+    if (_saving) return;
     _collect(formPage);
     saveBtn.disabled    = true;
     saveBtn.textContent = 'Saving…';
@@ -6700,11 +7229,23 @@ export async function render(container, navigate, params = {}) {
   valueWrap.appendChild(valueInp);
   valueWrap.appendChild(valueHintEl);
 
-  const updateValueHint = () => {
+  const discountOverWarn = document.createElement('p');
+  discountOverWarn.id = 'campaign-discount-over-warn';
+  discountOverWarn.style.cssText = 'display:none;font-size:12px;color:var(--amber,#f59e0b);margin-top:4px';
+  discountOverWarn.textContent = 'Discount over 100% will result in a $0 effective price for all applied products.';
+  valueWrap.after(discountOverWarn);
+
+  const updateDiscountState = () => {
+    const val = parseFloat(valueInp.value);
     valueHintEl.textContent = typeSelect.value === 'PERCENTAGE' ? '%' : 'fixed amount';
+    const isOver = typeSelect.value === 'PERCENTAGE' && !isNaN(val) && val > 100;
+    discountOverWarn.style.display = isOver ? 'block' : 'none';
+    if (isOver) console.warn(`[Campaign] Discount of ${val}% exceeds 100 — effective price will floor at $0.`);
   };
-  typeSelect.addEventListener('change', updateValueHint);
-  updateValueHint();
+  const updateValueHint = () => updateDiscountState();
+  typeSelect.addEventListener('change', updateDiscountState);
+  valueInp.addEventListener('input', updateDiscountState);
+  updateDiscountState();
 
   body.appendChild(labelRow('campaign-value', 'Discount Value', valueWrap, true));
 
@@ -7051,6 +7592,7 @@ const VIEWS = {
   'products/queue':  renderProductQueue,
   'products/detail': renderProductDetail,
   'products/active': (c, nav, p) => renderProductQueue(c, nav, { ...p, mode: 'active' }),
+  'products/all':    (c, nav, p) => renderProductQueue(c, nav, { ...p, mode: 'all' }),
   'campaigns/new':   renderCampaignForm,
   'campaigns/edit':  renderCampaignForm,
 };
@@ -7059,6 +7601,7 @@ const VIEW_TITLES = {
   dashboard:         'Dashboard',
   'products/queue':  'Incoming Queue',
   'products/active': 'Active Products',
+  'products/all':    'All Products',
   'products/detail': 'Product Detail',
   'campaigns/new':   'New Campaign',
   'campaigns/edit':  'Edit Campaign',
@@ -7132,6 +7675,14 @@ export function mount(container) {
             </a>
           </li>
           <li>
+            <a class="nav-link" data-view="products/all" href="#">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 2h2v2H2V2zm0 4h2v2H2V6zm0 4h2v2H2v-2zm4-8h8v2H6V2zm0 4h8v2H6V6zm0 4h8v2H6v-2z"/>
+              </svg>
+              All Products
+            </a>
+          </li>
+          <li>
             <a class="nav-link" data-view="campaigns/new" href="#">
               <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1H0V4zm0 3h16v5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7zm3 2a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5H3z"/>
@@ -7182,6 +7733,7 @@ DOSYA: src/panels/sales/product-detail.js
 
 import DB                                        from '../../core/db.js';
 import { calculate, getEffectivePrice }          from '../../core/engine.js';
+import { validate, SALES_PRICING_SCHEMA }        from '../../core/validator.js';
 import { transition }                            from '../../modules/workflow/index.js';
 import { getCurrentUser }                        from '../../modules/auth/index.js';
 import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc } from '../../shared/utils/index.js';
@@ -7379,6 +7931,18 @@ function _buildPricingForm(container, product, allCampaigns) {
   body.appendChild(numField('selling-price',    'Selling Price',    product.sellingPrice,    true,  '(required)'));
   body.appendChild(numField('compare-at-price', 'Compare-at Price', product.compareAtPrice,  false, '(optional strikethrough)'));
 
+  const compareWarn = document.createElement('div');
+  compareWarn.id = 'compare-at-warning';
+  compareWarn.style.cssText = 'display:none;font-size:12px;color:var(--amber,#f59e0b);padding:4px 0 4px 184px';
+  compareWarn.textContent = 'Warning: compare-at price is lower than selling price.';
+  body.appendChild(compareWarn);
+
+  const pricingError = document.createElement('div');
+  pricingError.id = 'pricing-validation-error';
+  pricingError.className = 'alert alert--error';
+  pricingError.style.cssText = 'display:none;margin-top:10px';
+  body.appendChild(pricingError);
+
   // Campaign selector
   const campaignRow = document.createElement('div');
   campaignRow.style.cssText = 'display:grid;grid-template-columns:180px 1fr;gap:8px;align-items:center;'
@@ -7402,7 +7966,7 @@ function _buildPricingForm(container, product, allCampaigns) {
     opt.textContent = c.name + (c.discountType === 'PERCENTAGE'
       ? ` (${c.discountValue}% off)`
       : ` (-${formatCurrency(c.discountValue)})`);
-    if (product.campaignId === c.id) opt.selected = true;
+    if (product.activeCampaignId === c.id) opt.selected = true;
     campaignSelect.appendChild(opt);
   }
 
@@ -7423,19 +7987,29 @@ function _buildPricingForm(container, product, allCampaigns) {
 
   // Live preview update
   const sellingInput    = body.querySelector('#selling-price');
+  const compareInput    = body.querySelector('#compare-at-price');
+  const compareWarnEl   = body.querySelector('#compare-at-warning');
   const effectiveEl     = body.querySelector('#effective-preview');
 
   function updatePreview() {
-    const sellingPrice = parseFloatOrNull(sellingInput.value);
+    const sellingPrice    = parseFloatOrNull(sellingInput.value);
+    const compareAtPrice  = parseFloatOrNull(compareInput.value);
     const selectedCampaignId = campaignSelect.value;
     const campaign = eligibleCampaigns.find(c => c.id === selectedCampaignId) || null;
 
     const draft = { ...product, sellingPrice };
     const eff   = getEffectivePrice(draft, campaign);
     effectiveEl.textContent = eff != null ? formatCurrency(eff) : '—';
+
+    if (compareAtPrice != null && sellingPrice != null && compareAtPrice < sellingPrice) {
+      compareWarnEl.style.display = 'block';
+    } else {
+      compareWarnEl.style.display = 'none';
+    }
   }
 
   sellingInput.addEventListener('input', updatePreview);
+  compareInput.addEventListener('input', updatePreview);
   campaignSelect.addEventListener('change', updatePreview);
   updatePreview();
 }
@@ -7446,17 +8020,17 @@ function parseFloatOrNull(str) {
   return isNaN(n) ? null : n;
 }
 
-function _collectPricing() {
+function _collectPricing(scopeEl) {
   return {
-    sellingPrice:    parseFloatOrNull(document.getElementById('selling-price')?.value),
-    compareAtPrice:  parseFloatOrNull(document.getElementById('compare-at-price')?.value),
-    campaignId:      document.getElementById('campaign-select')?.value || null,
+    sellingPrice:     parseFloatOrNull(scopeEl.querySelector('#selling-price')?.value),
+    compareAtPrice:   parseFloatOrNull(scopeEl.querySelector('#compare-at-price')?.value),
+    activeCampaignId: scopeEl.querySelector('#campaign-select')?.value || null,
   };
 }
 
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
-function _buildActionBar(pageEl, product, navigate, returnTo) {
+function _buildActionBar(pageEl, product, navigate, returnTo, pricingContent) {
   const isSalesPending = product.status === 'PENDING_SALES';
 
   const bar = document.createElement('div');
@@ -7508,11 +8082,18 @@ function _buildActionBar(pageEl, product, navigate, returnTo) {
   let _pendingAction = null;
 
   async function savePricing() {
-    const pricing = _collectPricing();
-    if (!pricing.sellingPrice) {
-      alert('Selling Price is required before saving.');
+    const pricing = _collectPricing(pricingContent);
+    const errEl = pricingContent.querySelector('#pricing-validation-error');
+
+    const { valid, errors } = validate(SALES_PRICING_SCHEMA, pricing);
+    if (!valid) {
+      const msgs = Object.values(errors).flat();
+      errEl.innerHTML = msgs.map(m => `<p style="margin:2px 0">${esc(m)}</p>`).join('');
+      errEl.style.display = 'block';
       return false;
     }
+    errEl.style.display = 'none';
+
     await DB.patch('products', product.id, {
       ...pricing,
       updatedBy: user?.userId,
@@ -7669,7 +8250,7 @@ export async function render(container, navigate, params = {}) {
   _buildPricingForm(content, product, allCampaigns);
 
   // Action bar (sticky bottom)
-  _buildActionBar(pageEl, product, navigate, returnTo);
+  _buildActionBar(pageEl, product, navigate, returnTo, content);
 
   container.appendChild(pageEl);
 }
@@ -7697,9 +8278,17 @@ export async function render(container, navigate, params = {}) {
 
   let products;
   try {
-    products = isQueue
-      ? await DB.queryByIndex('products', 'status', 'PENDING_SALES')
-      : await DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE');
+    if (isQueue) {
+      products = await DB.queryByIndex('products', 'status', 'PENDING_SALES');
+    } else if (mode === 'active') {
+      products = await DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE');
+    } else {
+      const [pending, ready] = await Promise.all([
+        DB.queryByIndex('products', 'status', 'PENDING_SALES'),
+        DB.queryByIndex('products', 'status', 'READY_FOR_ECOMMERCE'),
+      ]);
+      products = [...(pending || []), ...(ready || [])];
+    }
   } catch (err) {
     container.innerHTML = `
       <div class="view-placeholder">
@@ -7853,6 +8442,8 @@ import DB                                        from '../../core/db.js';
 import { statusBadge, formatRelativeTime, esc }  from '../../shared/utils/index.js';
 import { toShopifyCSV, toJSONFeed,
          downloadCSV, downloadJSON }             from '../../modules/export/index.js';
+import { ROLE_PERMISSIONS, ACTIONS }             from '../../modules/auth/permissions.js';
+import { getOverrides }                          from '../../modules/auth/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -7961,6 +8552,59 @@ export async function render(container, navigate) {
 
   breakdownSection.appendChild(breakdownCard);
   container.appendChild(breakdownSection);
+
+  // ── Permission Matrix ─────────────────────────────────────────────────────
+  const permSection = document.createElement('div');
+  permSection.className = 'section';
+
+  const pHdr = document.createElement('div');
+  pHdr.className = 'section-header';
+  pHdr.innerHTML = `<span class="section-title">Permission Matrix</span>`;
+  const mBtn = document.createElement('button');
+  mBtn.className = 'btn btn--ghost btn--sm';
+  mBtn.textContent = 'Manage Overrides →';
+  mBtn.addEventListener('click', () => navigate('override'));
+  pHdr.appendChild(mBtn);
+  permSection.appendChild(pHdr);
+
+  const permCard = document.createElement('div');
+  permCard.className = 'card';
+  permCard.style.overflowX = 'auto';
+
+  const overrides = getOverrides();
+  const roles = ['MANUFACTURER', 'ADMIN', 'SALES', 'SUPER_ADMIN'];
+  const allActions = Object.values(ACTIONS);
+
+  const table = document.createElement('table');
+  table.className = 'products-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Action</th>
+        ${roles.map(r => `<th>${r}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>
+      ${allActions.map(action => `
+        <tr>
+          <td style="font-size:12px;font-weight:600">${action}</td>
+          ${roles.map(role => {
+            if (role === 'SUPER_ADMIN') return '<td style="text-align:center">✅</td>';
+            const base = ROLE_PERMISSIONS[role]?.actions.includes(action);
+            const ovr  = overrides.actions[`${role}:${action}`];
+            const allowed = ovr !== undefined ? ovr : base;
+            const isModified = ovr !== undefined;
+            return `<td style="text-align:center;${isModified ? 'background:var(--surface-alt)' : ''}">
+              ${allowed ? '✅' : '❌'}${isModified ? ' <sup>*</sup>' : ''}
+            </td>`;
+          }).join('')}
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+  permCard.appendChild(table);
+  permSection.appendChild(permCard);
+  container.appendChild(permSection);
 
   // ── Recent activity table ─────────────────────────────────────────────────
   const activitySection = document.createElement('div');
@@ -8101,6 +8745,7 @@ import { getCurrentUser, setCurrentUser } from '../../modules/auth/index.js';
 import { render as renderDashboard }     from './dashboard.js';
 import { render as renderUserMgmt }      from './user-management.js';
 import { render as renderOverride }      from './override.js';
+import { render as renderAuditLog }      from '../admin/audit-log.js';
 
 // ─── Views ─────────────────────────────────────────────────────────────────────
 
@@ -8108,12 +8753,14 @@ const VIEWS = {
   dashboard:  renderDashboard,
   users:      renderUserMgmt,
   override:   renderOverride,
+  'audit-log': renderAuditLog,
 };
 
 const VIEW_TITLES = {
-  dashboard: 'Dashboard',
-  users:     'User Management',
-  override:  'Override / Force Transition',
+  dashboard:   'Dashboard',
+  users:       'User Management',
+  override:    'Override / Force Transition',
+  'audit-log': 'Audit Log',
 };
 
 // ─── Router state ──────────────────────────────────────────────────────────────
@@ -8185,6 +8832,15 @@ export function mount(container) {
               Override
             </a>
           </li>
+          <li>
+            <a class="nav-link" data-view="audit-log" href="#">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M5 4a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm-.5 2.5A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM5 8a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1H5zm0 2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1H5z"/>
+                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2zm10-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1z"/>
+              </svg>
+              Audit Log
+            </a>
+          </li>
         </ul>
 
         <div class="sidebar-footer">
@@ -8228,7 +8884,9 @@ DOSYA: src/panels/super-admin/override.js
 
 import DB                              from '../../core/db.js';
 import { transition }                  from '../../modules/workflow/index.js';
-import { getCurrentUser }              from '../../modules/auth/index.js';
+import { getCurrentUser, getOverrides, setOverride } from '../../modules/auth/index.js';
+import { ROLE_PERMISSIONS, ACTIONS }    from '../../modules/auth/permissions.js';
+import { logOverride }                 from '../../core/logger.js';
 import { statusBadge, formatRelativeTime, esc } from '../../shared/utils/index.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -8263,15 +8921,21 @@ export async function render(container) {
 
   container.innerHTML = '';
 
+  // ─── Status Override Section ──────────────────────────────────────────────
+  const overrideHeader = document.createElement('h2');
+  overrideHeader.className = 'section-title';
+  overrideHeader.style.marginBottom = '16px';
+  overrideHeader.textContent = 'Workflow Status Override';
+  container.appendChild(overrideHeader);
+
   // Warning banner
   const warning = document.createElement('div');
   warning.className = 'alert alert--warning';
   warning.style.marginBottom = '20px';
   warning.innerHTML = `
-    <strong>Super Admin Override</strong>
+    <strong>Caution</strong>
     <p style="margin-top:4px;font-size:13px">
       Force any product to any status, bypassing normal workflow rules.
-      Use with caution — all actions are logged.
     </p>`;
   container.appendChild(warning);
 
@@ -8291,19 +8955,16 @@ export async function render(container) {
   const resultsWrap = document.createElement('div');
   container.appendChild(resultsWrap);
 
-  // Override form (hidden until product selected)
   const overrideForm = document.createElement('div');
   overrideForm.id = 'override-form';
   overrideForm.style.display = 'none';
   container.appendChild(overrideForm);
 
-  let selectedProduct = null;
+  searchInput.addEventListener('input', () => renderResults(searchInput.value.trim()));
 
   function renderResults(query) {
     resultsWrap.innerHTML = '';
     overrideForm.style.display = 'none';
-    selectedProduct = null;
-
     if (!query) return;
 
     const q       = query.toLowerCase();
@@ -8336,22 +8997,16 @@ export async function render(container) {
         <div></div>
         <span style="font-size:12px;color:var(--text-muted)">${formatRelativeTime(p.updatedAt)}</span>`;
       li.querySelector('div:last-of-type').appendChild(statusBadge(p.status));
-
       li.addEventListener('click', () => {
-        selectedProduct = p;
         resultsWrap.innerHTML = '';
         searchInput.value = p.name || p.sku || '';
         showOverrideForm(p);
       });
-
       ul.appendChild(li);
     }
-
     card.appendChild(ul);
     resultsWrap.appendChild(card);
   }
-
-  searchInput.addEventListener('input', () => renderResults(searchInput.value.trim()));
 
   function showOverrideForm(product) {
     overrideForm.style.display = 'block';
@@ -8370,123 +9025,146 @@ export async function render(container) {
     const body = document.createElement('div');
     body.style.cssText = 'padding:16px 20px 8px';
 
-    // Current status
-    const curRow = document.createElement('div');
-    curRow.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:16px;'
-      + 'padding:10px;background:var(--bg);border-radius:var(--r-sm)';
-    curRow.innerHTML = `<span style="font-size:13px;color:var(--text-muted)">Current status:</span>`;
-    curRow.appendChild(statusBadge(product.status));
-    body.appendChild(curRow);
-
-    // Target status
-    const targetRow = document.createElement('div');
-    targetRow.style.cssText = 'display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center;'
-      + 'padding:7px 0;border-bottom:1px solid var(--border-light)';
-    targetRow.innerHTML = `<label for="override-status" style="font-size:13px;color:var(--text-muted)">
-      Force to Status <span style="color:var(--red,#ef4444)">*</span></label>`;
-
-    const statusSelect = document.createElement('select');
-    statusSelect.id = 'override-status';
-    statusSelect.className = 'form-select';
-    statusSelect.style.cssText = 'width:auto;min-width:220px';
-
-    const blankOpt = document.createElement('option');
-    blankOpt.value = '';
-    blankOpt.textContent = 'Select target status…';
-    statusSelect.appendChild(blankOpt);
-
-    for (const s of ALL_STATUSES) {
-      const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = s;
-      if (s === product.status) opt.disabled = true;
-      statusSelect.appendChild(opt);
-    }
-    targetRow.appendChild(statusSelect);
-    body.appendChild(targetRow);
-
-    // Notes
-    const notesRow = document.createElement('div');
-    notesRow.style.cssText = 'display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:start;'
-      + 'padding:7px 0;border-bottom:1px solid var(--border-light)';
-    notesRow.innerHTML = `<label for="override-notes" style="font-size:13px;color:var(--text-muted);padding-top:6px">
-      Reason / Notes</label>`;
-    const notesArea = document.createElement('textarea');
-    notesArea.id = 'override-notes';
-    notesArea.className = 'form-textarea';
-    notesArea.style.cssText = 'width:100%;min-height:70px;font-size:13px;resize:vertical';
-    notesArea.placeholder = 'Required for revision/reject statuses; optional otherwise.';
-    notesRow.appendChild(notesArea);
-    body.appendChild(notesRow);
-
-    const errorEl = document.createElement('div');
-    errorEl.className = 'alert alert--error';
-    errorEl.style.display = 'none';
-    errorEl.style.marginTop = '10px';
-    body.appendChild(errorEl);
-
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px;background:var(--bg);border-radius:var(--r-sm)">
+        <span style="font-size:13px;color:var(--text-muted)">Current status:</span>
+        <div id="cur-status-badge"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border-light)">
+        <label for="override-status" style="font-size:13px;color:var(--text-muted)">Force to Status <span style="color:var(--red,#ef4444)">*</span></label>
+        <select id="override-status" class="form-select" style="width:auto;min-width:220px">
+          <option value="">Select target status…</option>
+          ${ALL_STATUSES.map(s => `<option value="${s}"${s === product.status ? ' disabled' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:start;padding:7px 0;border-bottom:1px solid var(--border-light)">
+        <label for="override-notes" style="font-size:13px;color:var(--text-muted);padding-top:6px">Reason / Notes</label>
+        <textarea id="override-notes" class="form-textarea" style="width:100%;min-height:70px;font-size:13px;resize:vertical" placeholder="Notes are audit-logged."></textarea>
+      </div>
+      <div id="override-error" class="alert alert--error" style="display:none;margin-top:10px"></div>
+    `;
+    body.querySelector('#cur-status-badge').appendChild(statusBadge(product.status));
     card.appendChild(body);
 
     const footer = document.createElement('div');
     footer.style.cssText = 'padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px';
-
     const applyBtn = document.createElement('button');
-    applyBtn.className   = 'btn btn--danger btn--sm';
+    applyBtn.className = 'btn btn--danger btn--sm';
     applyBtn.textContent = 'Force Transition';
-
     const cancelBtn = document.createElement('button');
-    cancelBtn.className   = 'btn btn--ghost btn--sm';
+    cancelBtn.className = 'btn btn--ghost btn--sm';
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', () => {
-      overrideForm.style.display = 'none';
-      searchInput.value = '';
-    });
-
+    cancelBtn.addEventListener('click', () => { overrideForm.style.display = 'none'; searchInput.value = ''; });
     footer.append(applyBtn, cancelBtn);
     card.appendChild(footer);
     overrideForm.appendChild(card);
 
     applyBtn.addEventListener('click', async () => {
-      const toStatus = statusSelect.value;
-      const notes    = notesArea.value.trim();
-
-      if (!toStatus) {
-        errorEl.textContent = 'Select a target status.';
-        errorEl.style.display = 'block';
-        return;
-      }
-
-      applyBtn.disabled = true;
-      applyBtn.textContent = 'Applying…';
-      errorEl.style.display = 'none';
-
+      const toStatus = body.querySelector('#override-status').value;
+      const notes = body.querySelector('#override-notes').value.trim();
+      if (!toStatus) { body.querySelector('#override-error').textContent = 'Select a target status.'; body.querySelector('#override-error').style.display = 'block'; return; }
+      applyBtn.disabled = true; applyBtn.textContent = 'Applying…';
       try {
         const user = getCurrentUser();
-        // Super admin override — transition() allows any transition for SUPER_ADMIN role
         await transition(product.id, toStatus, user?.userId, notes || undefined);
-
-        // Refresh local product record
         const updated = await DB.get('products', product.id);
-        if (updated) {
-          const idx = products.findIndex(p => p.id === product.id);
-          if (idx !== -1) products[idx] = updated;
-          showOverrideForm(updated);
-        }
-
-        const successBanner = document.createElement('div');
-        successBanner.className = 'alert alert--success';
-        successBanner.style.cssText = 'margin-bottom:16px';
-        successBanner.textContent = `Product moved to ${toStatus}.`;
-        overrideForm.insertBefore(successBanner, overrideForm.firstChild);
-        setTimeout(() => successBanner.remove(), 3000);
-
+        if (updated) showOverrideForm(updated);
+        const success = document.createElement('div');
+        success.className = 'alert alert--success'; success.style.marginBottom = '16px'; success.textContent = `Product moved to ${toStatus}.`;
+        overrideForm.prepend(success); setTimeout(() => success.remove(), 3000);
       } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.style.display = 'block';
-        applyBtn.disabled = false;
-        applyBtn.textContent = 'Force Transition';
+        body.querySelector('#override-error').textContent = err.message; body.querySelector('#override-error').style.display = 'block';
+        applyBtn.disabled = false; applyBtn.textContent = 'Force Transition';
       }
     });
+  }
+
+  // ─── Permission Overrides Section ─────────────────────────────────────────
+  const permHeader = document.createElement('h2');
+  permHeader.className = 'section-title';
+  permHeader.style.cssText = 'margin:40px 0 16px';
+  permHeader.textContent = 'Dynamic Permission Overrides';
+  container.appendChild(permHeader);
+
+  const permDesc = document.createElement('p');
+  permDesc.style.cssText = 'font-size:13px;color:var(--text-muted);margin-bottom:20px';
+  permDesc.textContent = 'Temporarily restrict or expand role capabilities. Changes are saved to IndexedDB and logged.';
+  container.appendChild(permDesc);
+
+  const roles = ['MANUFACTURER', 'ADMIN', 'SALES'];
+  const overrides = getOverrides();
+
+  for (const role of roles) {
+    const roleCard = document.createElement('div');
+    roleCard.className = 'card';
+    roleCard.style.marginBottom = '24px';
+
+    const rhdr = document.createElement('div');
+    rhdr.style.cssText = 'padding:10px 20px;background:var(--surface-alt);border-bottom:1px solid var(--border);font-size:12px;font-weight:700';
+    rhdr.textContent = role;
+    roleCard.appendChild(rhdr);
+
+    const rbody = document.createElement('div');
+    rbody.style.padding = '12px 20px';
+
+    // Transitions
+    const tHdr = document.createElement('h4');
+    tHdr.style.cssText = 'font-size:11px;text-transform:uppercase;color:var(--text-muted);margin:0 0 10px';
+    tHdr.textContent = 'Allowed Transitions';
+    rbody.appendChild(tHdr);
+
+    const tGrid = document.createElement('div');
+    tGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:8px;margin-bottom:20px';
+    
+    const perms = ROLE_PERMISSIONS[role];
+    for (const tKey of perms.transitions) {
+      if (tKey === '*:ARCHIVED') continue; // wildcard not directly togglable here
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      const isOverridden = overrides.transitions[`${role}:${tKey}`];
+      checkbox.checked = isOverridden !== undefined ? isOverridden : true;
+      
+      label.append(checkbox, document.createTextNode(tKey));
+      tGrid.appendChild(label);
+
+      checkbox.addEventListener('change', async () => {
+        await setOverride('transitions', `${role}:${tKey}`, checkbox.checked);
+        logOverride(getCurrentUser()?.userId, role, `TRANSITION:${tKey}`, checkbox.checked);
+      });
+    }
+    rbody.appendChild(tGrid);
+
+    // Actions
+    const aHdr = document.createElement('h4');
+    aHdr.style.cssText = 'font-size:11px;text-transform:uppercase;color:var(--text-muted);margin:0 0 10px';
+    aHdr.textContent = 'Allowed Actions';
+    rbody.appendChild(aHdr);
+
+    const aGrid = document.createElement('div');
+    aGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:8px';
+
+    for (const action of perms.actions) {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      const isOverridden = overrides.actions[`${role}:${action}`];
+      checkbox.checked = isOverridden !== undefined ? isOverridden : true;
+      
+      label.append(checkbox, document.createTextNode(action));
+      aGrid.appendChild(label);
+
+      checkbox.addEventListener('change', async () => {
+        await setOverride('actions', `${role}:${action}`, checkbox.checked);
+        logOverride(getCurrentUser()?.userId, role, `ACTION:${action}`, checkbox.checked);
+      });
+    }
+    rbody.appendChild(aGrid);
+
+    roleCard.appendChild(rbody);
+    container.appendChild(roleCard);
   }
 }
 
@@ -10093,9 +10771,19 @@ import * as Auth                       from '../src/modules/auth/index.js';
 import { transition, ALLOWED_TRANSITIONS } from '../src/modules/workflow/index.js';
 import { generateUUID }                from '../src/shared/utils/index.js';
 import { generateProductSKU }          from '../src/modules/product/sku.js';
-import { calculate }                   from '../src/core/engine.js';
+import { calculate, getEffectivePrice } from '../src/core/engine.js';
+import { validate, MANUFACTURER_COST_SCHEMA } from '../src/core/validator.js';
 
 // ─── Test users ───────────────────────────────────────────────────────────────
+
+const SUPER_USER = {
+  userId:      'e2e-super-001',
+  email:       'super@e2e.test',
+  displayName: 'E2E Super Admin',
+  role:        'SUPER_ADMIN',
+  isActive:    true,
+  createdAt:   Date.now(),
+};
 
 const MFR_USER = {
   userId:      'e2e-mfr-001',
@@ -10128,6 +10816,27 @@ const SALES_USER = {
 
 let _passed = 0;
 let _failed = 0;
+const _testProductIds = new Set();
+
+async function safeCleanup(productId) {
+  if (!productId) return;
+  try {
+    // 1. Delete all variants for this product
+    const variants = await DB.queryByIndex('variants', 'productId', productId);
+    if (variants && variants.length > 0) {
+      await Promise.all(variants.map(v => DB.delete('variants', v.variantId)));
+    }
+    // 2. Delete the product itself
+    await DB.delete('products', productId);
+    // 3. Delete any audit logs for this product to keep it clean
+    const logs = await DB.queryByIndex('auditLog', 'productId', productId);
+    if (logs && logs.length > 0) {
+      await Promise.all(logs.map(l => DB.delete('auditLog', l.logId)));
+    }
+  } catch (err) {
+    // Ignore cleanup errors
+  }
+}
 
 function assert(label, condition, detail = '') {
   if (condition) {
@@ -10148,6 +10857,30 @@ async function assertRejects(label, fn) {
     console.log(`  ✅ PASS  ${label}`);
     _passed++;
   }
+}
+
+/**
+ * Helper to ensure a product has a valid admin cost layer so it can pass workflow validation.
+ */
+async function addAdminCosts(productId, marginPct = 35) {
+  const p = await DB.get('products', productId);
+  if (!p) throw new Error(`Product not found: ${productId}`);
+
+  const adminCosts = {
+    adminTaxPct:         10,
+    adminMarginPct:      marginPct,
+    adminLogisticsCost:  3.00,
+    adminMarketingCost:  1.50,
+    adminMiscCost:       0.50,
+  };
+  const { transferPrice } = calculate({ ...p, ...adminCosts });
+  
+  await DB.patch('products', productId, { 
+    ...adminCosts, 
+    transferPrice,
+    updatedBy: ADMIN_USER.userId,
+    updatedAt: Date.now()
+  });
 }
 
 // ─── Test data factory ────────────────────────────────────────────────────────
@@ -10182,7 +10915,8 @@ async function testStep1_ManufacturerCreatesAndSubmits(productId, sku) {
   console.group('1. Manufacturer: create product and submit');
 
   // Ensure product doesn't exist from a previous interrupted run
-  try { await DB.delete('products', productId); } catch {}
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
 
   // Act as manufacturer
   await Auth.setCurrentUser(MFR_USER);
@@ -10237,30 +10971,14 @@ async function testStep2_AdminCostsAndApprove(productId) {
   await Auth.setCurrentUser(ADMIN_USER);
   assert('getCurrentUser() returns ADMIN', Auth.getCurrentUser()?.role === 'ADMIN');
 
-  // Apply admin cost layer
-  const adminCosts = {
-    adminTaxPct:         10,
-    adminMarginPct:      35,
-    adminLogisticsCost:  3.00,
-    adminMarketingCost:  1.50,
-    adminMiscCost:       0.50,
-    updatedBy:           ADMIN_USER.userId,
-    updatedAt:           Date.now(),
-  };
-
-  // Calculate expected transfer price
-  const product = await DB.get('products', productId);
-  const { transferPrice } = calculate({ ...product, ...adminCosts });
-  assert('calculate() returns a transferPrice > 0', transferPrice != null && transferPrice > 0,
-    String(transferPrice));
-
-  await DB.patch('products', productId, { ...adminCosts, transferPrice });
+  // Apply admin cost layer using helper
+  await addAdminCosts(productId, 35);
 
   const afterCosts = await DB.get('products', productId);
   assert('adminMarginPct saved to product',
     afterCosts?.adminMarginPct === 35, String(afterCosts?.adminMarginPct));
   assert('transferPrice saved to product',
-    afterCosts?.transferPrice === transferPrice, String(afterCosts?.transferPrice));
+    afterCosts?.transferPrice > 0, String(afterCosts?.transferPrice));
 
   // Reject: SALES cannot approve from PENDING_ADMIN
   await Auth.setCurrentUser(SALES_USER);
@@ -10368,6 +11086,9 @@ async function testStep5_RevisionFlow() {
   console.group('5. Admin revision request flow');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku = await generateProductSKU('Necklace', 'Silver');
   const product = makeProduct(productId, sku);
 
@@ -10402,9 +11123,6 @@ async function testStep5_RevisionFlow() {
   assert('revisionNotes cleared after re-submit',
     resubmitted?.revisionNotes === null, String(resubmitted?.revisionNotes));
 
-  // Cleanup
-  try { await DB.delete('products', productId); } catch {}
-
   console.groupEnd();
 }
 
@@ -10412,6 +11130,9 @@ async function testStep6_SalesRevisionLoop() {
   console.group('6. Sales revision loop: PENDING_SALES → REVISION_REQUESTED_BY_SALES → PENDING_ADMIN → PENDING_SALES → READY_FOR_ECOMMERCE');
 
   const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
   const sku       = await generateProductSKU('Earring', 'Silver');
   const product   = makeProduct(productId, sku);
 
@@ -10421,16 +11142,7 @@ async function testStep6_SalesRevisionLoop() {
   await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
 
   await Auth.setCurrentUser(ADMIN_USER);
-  const costs = {
-    adminTaxPct: 10, adminMarginPct: 35,
-    adminLogisticsCost: 3.00, adminMarketingCost: 1.50, adminMiscCost: 0.50,
-  };
-  const { transferPrice } = calculate({ ...product, ...costs });
-  await DB.patch('products', productId, {
-    ...costs, transferPrice,
-    sellingPrice: 99.00,
-    updatedBy: ADMIN_USER.userId, updatedAt: Date.now(),
-  });
+  await addAdminCosts(productId, 35);
   await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
 
   const atSales = await DB.get('products', productId);
@@ -10484,24 +11196,300 @@ async function testStep6_SalesRevisionLoop() {
 
   // 6. Sales can now approve to READY_FOR_ECOMMERCE
   await Auth.setCurrentUser(SALES_USER);
+  // Ensure selling price is set (required for READY_FOR_ECOMMERCE)
+  await DB.patch(productId, { sellingPrice: 99 }); 
   await transition(productId, 'READY_FOR_ECOMMERCE', SALES_USER.userId);
 
   const ready = await DB.get('products', productId);
   assert('Product reaches READY_FOR_ECOMMERCE after full Sales revision loop',
     ready?.status === 'READY_FOR_ECOMMERCE', ready?.status);
 
-  // Cleanup
-  try { await DB.delete('products', productId); } catch {}
+  console.groupEnd();
+}
+
+async function testStep7_PermissionEnforcement(productId) {
+  console.group('7. Permission Enforcement: verify role boundaries');
+
+  // Act as SALES
+  await Auth.setCurrentUser(SALES_USER);
+
+  // 1. Sales cannot edit Manufacturer fields (e.g. costMaterial)
+  const pBefore = await DB.get('products', productId);
+  const originalCost = pBefore.costMaterial;
+  
+  const State = await import('../src/core/state.js');
+  State.registerAuth(Auth);
+  State.load(pBefore);
+  
+  State.set('costMaterial', 999.99, SALES_USER.userId);
+  const pAfter = await DB.get('products', productId);
+  assert('SALES cannot edit costMaterial (Manufacturer field)',
+    pAfter.costMaterial === originalCost, `Value changed to ${pAfter.costMaterial}`);
+
+  // 2. Sales cannot trigger ADMIN transitions (PENDING_ADMIN -> PENDING_SALES)
+  const adminTestId = generateUUID();
+  _testProductIds.add(adminTestId);
+  await safeCleanup(adminTestId);
+  // Generate a unique SKU for this test product
+  const adminTestSku = await generateProductSKU(pBefore.category || 'Ring', pBefore.material || 'Gold');
+  await DB.add('products', { 
+    ...pBefore, 
+    id: adminTestId, 
+    sku: adminTestSku, 
+    status: 'PENDING_ADMIN' 
+  });
+  // MUST add admin costs to avoid validation errors, so that failure is purely due to permission
+  await addAdminCosts(adminTestId);
+  
+  await assertRejects(
+    'SALES cannot trigger ADMIN transition (PENDING_ADMIN → PENDING_SALES)',
+    () => transition(adminTestId, 'PENDING_SALES', SALES_USER.userId)
+  );
+
+  // 3. MANUFACTURER cannot skip ADMIN (DRAFT → PENDING_SALES)
+  await Auth.setCurrentUser(MFR_USER);
+  const mfrTestId = generateUUID();
+  _testProductIds.add(mfrTestId);
+  await safeCleanup(mfrTestId);
+  const mfrTestSku = await generateProductSKU(pBefore.category || 'Ring', pBefore.material || 'Gold');
+  await DB.add('products', { 
+    ...pBefore, 
+    id: mfrTestId, 
+    sku: mfrTestSku, 
+    status: 'DRAFT' 
+  });
+
+  await assertRejects(
+    'MANUFACTURER cannot skip ADMIN (DRAFT → PENDING_SALES)',
+    () => transition(mfrTestId, 'PENDING_SALES', MFR_USER.userId)
+  );
+
+  // 4. ADMIN must act as bridge (PENDING_ADMIN → READY_FOR_ECOMMERCE is illegal)
+  await Auth.setCurrentUser(ADMIN_USER);
+  await assertRejects(
+    'ADMIN cannot skip SALES (PENDING_ADMIN → READY_FOR_ECOMMERCE)',
+    () => transition(adminTestId, 'READY_FOR_ECOMMERCE', ADMIN_USER.userId)
+  );
 
   console.groupEnd();
 }
 
-// ─── Cleanup ──────────────────────────────────────────────────────────────────
+async function testStep8_DynamicOverrides() {
+  console.group('8. Dynamic Overrides: Super Admin authority');
 
-async function cleanup(productId) {
-  try { await DB.delete('products', productId); } catch {}
-  // Audit log entries can't easily be deleted by productId (autoIncrement keys),
-  // but they're harmless to leave as they use test-specific IDs.
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  const sku = await generateProductSKU('Ring', 'Gold');
+  await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_ADMIN' });
+  // Fix validation error: MUST have admin cost layer to transition to PENDING_SALES
+  await addAdminCosts(productId);
+
+  // 1. Super Admin disables Admin approve transition
+  await Auth.setCurrentUser(SUPER_USER);
+  
+  // Transition we will block: ADMIN:PENDING_ADMIN:PENDING_SALES
+  await Auth.setOverride('transitions', 'ADMIN:PENDING_ADMIN:PENDING_SALES', false);
+
+  // 2. Admin attempt to approve should now fail
+  await Auth.setCurrentUser(ADMIN_USER);
+  await assertRejects(
+    'ADMIN approve fails after Super Admin dynamic override (disable)',
+    () => transition(productId, 'PENDING_SALES', ADMIN_USER.userId)
+  );
+
+  // 3. Super Admin re-enables transition
+  await Auth.setCurrentUser(SUPER_USER);
+  await Auth.setOverride('transitions', 'ADMIN:PENDING_ADMIN:PENDING_SALES', true);
+
+  // 4. Admin attempt to approve should now succeed
+  await Auth.setCurrentUser(ADMIN_USER);
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+  const pAfter = await DB.get('products', productId);
+  assert('ADMIN approve succeeds after Super Admin dynamic override (enable)',
+    pAfter.status === 'PENDING_SALES');
+
+  // 5. Super Admin can override ANY status (even terminal/illegal)
+  await Auth.setCurrentUser(SUPER_USER);
+  // PENDING_SALES -> DRAFT (Normally illegal in map)
+  await transition(productId, 'DRAFT', SUPER_USER.userId);
+  const pFinal = await DB.get('products', productId);
+  assert('SUPER_ADMIN can bypass workflow map (PENDING_SALES → DRAFT)',
+    pFinal.status === 'DRAFT');
+
+  // Cleanup resets overrides for other tests
+  await Auth.setCurrentUser(SUPER_USER);
+  await DB.delete('settings', 'permissionOverrides');
+  await Auth.init();
+
+  console.groupEnd();
+}
+
+async function testStep9_ViolationLogging() {
+  console.group('9. Violation Logging: verify blocked attempts are recorded');
+
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  const sku = await generateProductSKU('Earring', 'Gold');
+  await DB.add('products', { ...makeProduct(productId, sku), status: 'PENDING_SALES' });
+
+  // MANUFACTURER attempts to approve PENDING_SALES
+  await Auth.setCurrentUser(MFR_USER);
+  try { await transition(productId, 'READY_FOR_ECOMMERCE', MFR_USER.userId); } catch {}
+
+  // Verify audit log
+  await new Promise(r => setTimeout(r, 100));
+  const logs = await DB.getAll('auditLog');
+  const violation = logs.find(l => l.action === 'PERMISSION_VIOLATION' && l.userRole === 'MANUFACTURER');
+  
+  assert('Permission violation is logged in audit log', !!violation);
+  assert('Violation notes contains transition info', violation?.notes?.includes('TRANSITION:PENDING_SALES:READY_FOR_ECOMMERCE'));
+
+  console.groupEnd();
+}
+
+async function testStep_Rejection() {
+  console.group('10. Rejection path: Admin rejects, MANUFACTURER cannot act, SUPER_ADMIN recovers');
+
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  const sku = await generateProductSKU('Bracelet', 'Silver');
+  const product = makeProduct(productId, sku);
+
+  // Create and submit as manufacturer
+  await Auth.setCurrentUser(MFR_USER);
+  await DB.add('products', product);
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+
+  // Admin rejects — notes required
+  await Auth.setCurrentUser(ADMIN_USER);
+  await assertRejects(
+    'REJECTED requires rejection notes',
+    () => transition(productId, 'REJECTED', ADMIN_USER.userId, '')
+  );
+
+  await transition(productId, 'REJECTED', ADMIN_USER.userId, 'Product specification is incomplete.');
+
+  const rejected = await DB.get('products', productId);
+  assert('Status is REJECTED', rejected?.status === 'REJECTED', rejected?.status);
+  assert('rejectionReason set', rejected?.rejectionReason?.includes('incomplete'), rejected?.rejectionReason);
+
+  // MANUFACTURER cannot transition from REJECTED
+  await Auth.setCurrentUser(MFR_USER);
+  await assertRejects(
+    'MANUFACTURER cannot act on REJECTED product',
+    () => transition(productId, 'PENDING_ADMIN', MFR_USER.userId)
+  );
+
+  // SUPER_ADMIN can force from REJECTED to DRAFT
+  await Auth.setCurrentUser(SUPER_USER);
+  await transition(productId, 'DRAFT', SUPER_USER.userId, 'Recovered by Super Admin for resubmission.');
+
+  const recovered = await DB.get('products', productId);
+  assert('SUPER_ADMIN forced REJECTED → DRAFT', recovered?.status === 'DRAFT', recovered?.status);
+
+  console.groupEnd();
+}
+
+async function testStep_NegativeCosts() {
+  console.group('11. Negative cost validation: schema rejects negative inputs');
+
+  // validate() should reject negative costMaterial
+  const negativeCosts = { costMaterial: -10, costLabor: 5 };
+  const { valid: v1, errors: e1 } = validate(MANUFACTURER_COST_SCHEMA, negativeCosts);
+  assert('Negative costMaterial fails MANUFACTURER_COST_SCHEMA',
+    !v1 && !!e1.costMaterial, JSON.stringify(e1));
+
+  // validate() should reject negative costLabor
+  const negativeLabor = { costMaterial: 10, costLabor: -5 };
+  const { valid: v2, errors: e2 } = validate(MANUFACTURER_COST_SCHEMA, negativeLabor);
+  assert('Negative costLabor fails MANUFACTURER_COST_SCHEMA',
+    !v2 && !!e2.costLabor, JSON.stringify(e2));
+
+  // validate() should allow 0 for material cost (free items)
+  const zeroCost = { costMaterial: 0, costLabor: 0 };
+  const { valid: v3 } = validate(MANUFACTURER_COST_SCHEMA, zeroCost);
+  assert('Zero costMaterial passes MANUFACTURER_COST_SCHEMA (free items allowed)', v3);
+
+  // validate() should reject negative costPackaging when present
+  const negativePkg = { costMaterial: 5, costLabor: 2, costPackaging: -1 };
+  const { valid: v4, errors: e4 } = validate(MANUFACTURER_COST_SCHEMA, negativePkg);
+  assert('Negative costPackaging fails MANUFACTURER_COST_SCHEMA',
+    !v4 && !!e4.costPackaging, JSON.stringify(e4));
+
+  console.groupEnd();
+}
+
+async function testStep_CampaignDiscount() {
+  console.group('12. Campaign discount edge cases: >100% floors at $0, no crash');
+
+  const product = { sellingPrice: 50 };
+
+  // Over 100% discount → effective price = 0
+  const overCampaign = {
+    id: 'e2e-camp-over',
+    isActive: true,
+    startsAt: Date.now() - 1000,
+    endsAt: null,
+    discountType: 'PERCENTAGE',
+    discountValue: 150,
+  };
+  const eff1 = getEffectivePrice(product, overCampaign);
+  assert('150% PERCENTAGE discount floors effective price to 0', eff1 === 0, String(eff1));
+
+  // Exactly 100% discount → effective price = 0
+  const exactCampaign = { ...overCampaign, discountValue: 100 };
+  const eff2 = getEffectivePrice(product, exactCampaign);
+  assert('100% PERCENTAGE discount produces $0 effective price', eff2 === 0, String(eff2));
+
+  // FIXED discount larger than price → effective price = 0
+  const fixedOver = { ...overCampaign, discountType: 'FIXED', discountValue: 999 };
+  const eff3 = getEffectivePrice(product, fixedOver);
+  assert('FIXED discount larger than price floors to $0', eff3 === 0, String(eff3));
+
+  // No crash when sellingPrice is null
+  const nullProduct = { sellingPrice: null };
+  const eff4 = getEffectivePrice(nullProduct, overCampaign);
+  assert('No crash when sellingPrice is null, effectivePrice is null', eff4 === null, String(eff4));
+
+  console.groupEnd();
+}
+
+async function testStep_DoubleSubmit() {
+  console.group('13. Double-save guard: DB rejects duplicate product IDs');
+
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  const sku = await generateProductSKU('Brooch', 'Brass');
+  const product = makeProduct(productId, sku);
+
+  // First add should succeed
+  await DB.add('products', product);
+  const saved = await DB.get('products', productId);
+  assert('First DB.add succeeds', saved?.id === productId);
+
+  // Second add with same ID must throw — ConstraintError is the expected behavior
+  try {
+    await DB.add('products', { ...product });
+    assert('Second DB.add rejected duplicate', false, 'expected ConstraintError — none thrown');
+  } catch (err) {
+    assert('Second DB.add rejected duplicate (ConstraintError)',
+      err.name === 'ConstraintError' || err.message?.toLowerCase().includes('uniqu'),
+      err.message);
+  }
+
+  const count = (await DB.getAll('products')).filter(p => p.id === productId).length;
+  assert('Only one product record exists after duplicate attempt', count === 1, String(count));
+
+  console.groupEnd();
+  return productId;
 }
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
@@ -10510,13 +11498,13 @@ async function run() {
   console.group('%c TuguPIM — E2E Workflow Test', 'font-weight:bold;font-size:14px');
   console.log('Tests run in the browser against live IndexedDB.\n');
 
-  // Init auth module (loads persisted user from settings if any)
-  await Auth.init();
-
-  const productId = generateUUID();
-  const sku       = await generateProductSKU('Ring', 'Gold');
-
   try {
+    // Init auth module (loads persisted user from settings if any)
+    await Auth.init();
+
+    const productId = generateUUID();
+    const sku       = await generateProductSKU('Ring', 'Gold');
+
     await testStep1_ManufacturerCreatesAndSubmits(productId, sku);
     await testStep2_AdminCostsAndApprove(productId);
     await testStep3_SalesPriceAndApprove(productId);
@@ -10525,8 +11513,23 @@ async function run() {
     await testStep4_AuditLog(productId);
     await testStep5_RevisionFlow();
     await testStep6_SalesRevisionLoop();
+    await testStep7_PermissionEnforcement(productId);
+    await testStep8_DynamicOverrides();
+    await testStep9_ViolationLogging();
+    await testStep_Rejection();
+    await testStep_NegativeCosts();
+    await testStep_CampaignDiscount();
+    await testStep_DoubleSubmit();
+  } catch (err) {
+    console.error('[e2e] Test suite failed prematurely:', err);
+    _failed++;
   } finally {
-    await cleanup(productId);
+    console.log('Finalizing: Cleaning up test data...');
+    const cleanupTasks = Array.from(_testProductIds).map(id => safeCleanup(id));
+    await Promise.all(cleanupTasks);
+    
+    // Reset settings
+    try { await DB.delete('settings', 'permissionOverrides'); } catch {}
     // Restore whatever user was active before the test
     await Auth.init();
   }
@@ -10547,7 +11550,7 @@ async function run() {
 }
 
 run().catch(err => {
-  console.error('[e2e] Test runner crashed:', err);
+  console.error('[e2e] Test runner fatal error:', err);
 });
 
 

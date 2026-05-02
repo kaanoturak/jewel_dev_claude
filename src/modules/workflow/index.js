@@ -209,10 +209,10 @@ export async function transition(productId, toStatus, userId, notes = null) {
   const updates = _buildProductUpdates(product, toStatus, userId, notes, now);
 
   // Save snapshot before updating the product so snapshotData reflects the
-  // state at the point the transition was triggered, not after.
+  // state at the point the transition was triggered, but with updated values.
   const snapshotKey = `${fromStatus}:${toStatus}`;
   if (SNAPSHOT_TRIGGERS.has(snapshotKey) || toStatus === 'ARCHIVED') {
-    await _saveVersionSnapshot(product, toStatus, userId, now);
+    await _saveVersionSnapshot({ ...product, ...updates }, toStatus, userId, now);
   }
 
   await DB.patch('products', productId, updates);

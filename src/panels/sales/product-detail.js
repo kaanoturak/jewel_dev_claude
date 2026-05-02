@@ -111,7 +111,7 @@ function _renderProductInfo(product) {
   descLabel.textContent = 'Description';
   const descDiv = document.createElement('div');
   descDiv.style.cssText = 'line-height:1.6;color:var(--text);font-weight:500;word-break:break-word';
-  descDiv.innerHTML = product.productDescription || '—';
+  descDiv.innerHTML = esc(product.productDescription || '—');
   descRow.appendChild(descLabel);
   descRow.appendChild(descDiv);
   body.appendChild(descRow);

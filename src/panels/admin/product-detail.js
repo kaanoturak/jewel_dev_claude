@@ -81,7 +81,7 @@ function _renderProductHeader(product) {
 function _renderProductInfo(product) {
   const rows = [
     field('Description', product.productDescription
-      ? `<span style="white-space:pre-wrap">${product.productDescription}</span>` : ''),
+      ? `<span style="white-space:pre-wrap">${esc(product.productDescription)}</span>` : ''),
     field('SEO Title',   esc(product.seoTitle || '')),
     field('Category',    esc(product.category || '—')),
     field('Material',    esc(product.material || '—')),

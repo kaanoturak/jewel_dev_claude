@@ -118,9 +118,9 @@ async function _saveProduct() {
     const p = Number(_draft.costPackaging) || 0;
     for (const v of _variants) { v.costMaterial = m; v.costLabor = l; v.costPackaging = p; }
   } else {
-    _draft.costMaterial  = _variants.reduce((s, v) => s + (Number(v.costMaterial)  || 0), 0);
-    _draft.costLabor     = _variants.reduce((s, v) => s + (Number(v.costLabor)     || 0), 0);
-    _draft.costPackaging = _variants.reduce((s, v) => s + (Number(v.costPackaging) || 0), 0);
+    _draft.costMaterial  = _variants.length ? Number(_variants[0].costMaterial)  || 0 : 0;
+    _draft.costLabor     = _variants.length ? Number(_variants[0].costLabor)     || 0 : 0;
+    _draft.costPackaging = _variants.length ? Number(_variants[0].costPackaging) || 0 : 0;
   }
   const costBase = _calcBase(_draft);
 
@@ -223,6 +223,7 @@ async function _saveProduct() {
         sizeBytes: file.size,
         createdAt: now,
       });
+      URL.revokeObjectURL(img.url);
     } catch { /* already stored */ }
     delete _pendingBlobs[img.id];
   }
