@@ -31,7 +31,7 @@ async function _fetchProducts(mode, userId) {
     const img = p.images[p.primaryImageIndex ?? 0];
     if (!img?.id) continue;
     const blob = blobsByProduct[p.id]?.[img.id];
-    if (blob?.blob) p.primaryImageUrl = URL.createObjectURL(blob.blob);
+    if (blob?.blob) p.primaryImageUrl = (typeof blob.blob === 'string' ? blob.blob : URL.createObjectURL(blob.blob));
   }
   return products;
 }

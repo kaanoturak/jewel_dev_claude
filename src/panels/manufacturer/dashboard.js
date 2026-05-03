@@ -23,7 +23,7 @@ async function fetchMyProducts() {
     try {
       const blobs = await DB.queryByIndex('mediaBlobs', 'productId', p.id);
       const rec   = (blobs || []).find(b => b.blobId === primaryMeta.id);
-      if (rec?.blob) p.primaryImageUrl = URL.createObjectURL(rec.blob);
+      if (rec?.blob) p.primaryImageUrl = (typeof rec.blob === 'string' ? rec.blob : URL.createObjectURL(rec.blob));
     } catch (err) {
       console.warn(`Failed to load thumbnail for ${p.id}:`, err);
     }

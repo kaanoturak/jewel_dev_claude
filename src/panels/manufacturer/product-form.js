@@ -72,7 +72,7 @@ async function _loadProduct(productId) {
   const blobMap = Object.fromEntries((blobs || []).map(b => [b.blobId, b]));
   const images  = (product.images || []).map(img => {
     const b = blobMap[img.id];
-    return b ? { ...img, url: URL.createObjectURL(b.blob) } : img;
+    return b ? { ...img, url: (typeof b.blob === 'string' ? b.blob : URL.createObjectURL(b.blob)) } : img;
   });
 
   return {

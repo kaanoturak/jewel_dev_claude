@@ -14,6 +14,7 @@ import {
   collection, query, where, runTransaction 
 } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 /**
  * Primary key field per collection (mirrors IndexedDB keyPath definitions).
@@ -35,6 +36,20 @@ export { initFirebase };
 export const getFirestoreDB      = getDB;
 export const getAuthInstance     = getAuthInst;
 export const getStorageInst      = getStore;
+
+// ─── Internal Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Uploads a file to Firebase Storage and returns its download URL.
+ */
+async function _uploadMedia(blobId, blob) {
+  if (!(blob instanceof Blob) && !(blob instanceof File)) {
+    return blob; // Already a URL or invalid
+  }
+  const storageRef = ref(getStore(), `media/${blobId}`);
+  await uploadBytes(storageRef, blob);
+  return await getDownloadURL(storageRef);
+}
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -63,6 +78,12 @@ const CloudDB = {
   async put(storeName, record) {
     const key = record[KEY_PATHS[storeName]];
     if (key == null) throw new Error(`put: missing key field "${KEY_PATHS[storeName]}" in ${storeName}`);
+    
+    // Intercept mediaBlobs to upload file to Storage
+    if (storeName === 'mediaBlobs' && record.blob) {
+      record.blob = await _uploadMedia(key, record.blob);
+    }
+
     await setDoc(doc(getDB(), storeName, String(key)), record);
     return key;
   },
@@ -72,9 +93,15 @@ const CloudDB = {
     const key     = record[keyPath];
 
     if (key != null) {
+      // Intercept mediaBlobs to upload file to Storage
+      if (storeName === 'mediaBlobs' && record.blob) {
+        record.blob = await _uploadMedia(key, record.blob);
+      }
       await setDoc(doc(getDB(), storeName, String(key)), record);
       return key;
     }
+    
+    // Auto-ID (mostly auditLog)
     const ref    = await addDoc(collection(getDB(), storeName), record);
     const stored = { ...record, [keyPath]: ref.id };
     await setDoc(ref, stored);
@@ -82,6 +109,15 @@ const CloudDB = {
   },
 
   async delete(storeName, key) {
+    // If deleting from mediaBlobs, also delete from Storage
+    if (storeName === 'mediaBlobs') {
+      try {
+        const storageRef = ref(getStore(), `media/${key}`);
+        await deleteObject(storageRef);
+      } catch (err) {
+        console.warn(`[Storage] Failed to delete media/${key}:`, err.message);
+      }
+    }
     await deleteDoc(doc(getDB(), storeName, String(key)));
   },
 
@@ -89,6 +125,12 @@ const CloudDB = {
     const ref  = doc(getDB(), storeName, String(key));
     const snap = await getDoc(ref);
     if (!snap.exists()) throw new Error(`patch: record "${key}" not found in "${storeName}"`);
+    
+    // Intercept mediaBlobs to upload file to Storage if blob changed
+    if (storeName === 'mediaBlobs' && changes.blob) {
+      changes.blob = await _uploadMedia(key, changes.blob);
+    }
+
     await updateDoc(ref, changes);
   },
 

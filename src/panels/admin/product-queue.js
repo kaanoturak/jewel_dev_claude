@@ -32,7 +32,7 @@ async function _fetchProducts(mode) {
     if (!img?.id) continue;
     const blobRecord = blobsByProduct[p.id]?.[img.id];
     if (blobRecord?.blob) {
-      p.primaryImageUrl = URL.createObjectURL(blobRecord.blob);
+      p.primaryImageUrl = (typeof blobRecord.blob === 'string' ? blobRecord.blob : URL.createObjectURL(blobRecord.blob));
     }
   }
   return products;
