@@ -1,24 +1,17 @@
 import DB from '../../core/db.js';
 import { ROLE_PERMISSIONS, ACTIONS } from './permissions.js';
 import { logViolation } from '../../core/logger.js';
-import { CLOUD_ENABLED, FIREBASE_VERSION } from '../../core/firebase-config.js';
+import { getFirestoreDB, getAuthInstance, firebaseSignIn, firebaseSignOut } from '../../core/api.js';
+import { doc, getDoc, onAuthStateChanged } from 'firebase/firestore';
 
 // ─── Dynamic Overrides ────────────────────────────────────────────────────────
-// Overrides are stored in IndexedDB: settings store, key 'permissionOverrides'.
-// Structure: { transitions: { 'ROLE:FROM:TO': boolean }, actions: { 'ROLE:ACTION': boolean }, fields: { 'ROLE:FIELD': boolean } }
+// Overrides are stored in Firestore: settings collection, document 'permissionOverrides'.
 
 let _overrides = {
   transitions: {},
   actions:     {},
   fields:      {},
 };
-
-async function _loadOverrides() {
-  const setting = await DB.get('settings', 'permissionOverrides');
-  if (setting && setting.value) {
-    _overrides = setting.value;
-  }
-}
 
 export async function setOverride(type, key, value) {
   _overrides[type][key] = value;
@@ -40,51 +33,51 @@ let _currentUser = null;
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Load the current user and permission overrides.
- * Call once at app startup before any permission checks.
+ * Load the current user and permission overrides from Firebase.
  */
 export async function init() {
-  if (CLOUD_ENABLED) {
-    // Restore session from Firebase Auth + Firestore
-    const { getFirebaseCurrentUser, getFirestoreDB } = await import('../../core/api.js');
-    const fbUser = getFirebaseCurrentUser();
-    if (fbUser) {
-      const { doc, getDoc } = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
-      const snap = await getDoc(doc(getFirestoreDB(), 'users', fbUser.uid));
-      if (snap.exists() && snap.data().isActive) {
-        const d = snap.data();
-        _currentUser = {
-          userId: fbUser.uid, email: fbUser.email,
-          displayName: d.displayName || fbUser.email,
-          role: d.role, isActive: d.isActive, lastLoginAt: Date.now(),
-        };
+  return new Promise(async (resolve) => {
+    const auth = getAuthInstance();
+    
+    // Listen for auth state changes to restore session
+    onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const snap = await getDoc(doc(getFirestoreDB(), 'users', fbUser.uid));
+          if (snap.exists() && snap.data().isActive) {
+            const d = snap.data();
+            _currentUser = {
+              userId: fbUser.uid,
+              email: fbUser.email,
+              displayName: d.displayName || fbUser.email,
+              role: d.role,
+              isActive: d.isActive,
+              lastLoginAt: Date.now(),
+            };
+          }
+        } catch (err) {
+          console.error('[Auth] Failed to restore session:', err);
+        }
       }
-    }
-    // Load permission overrides from Firestore (CloudDB is already active at this point)
-    const overridesSetting = await DB.get('settings', 'permissionOverrides');
-    if (overridesSetting?.value) _overrides = overridesSetting.value;
-    return;
-  }
 
-  // Local mode: restore from IndexedDB
-  const [userSetting, overridesSetting] = await Promise.all([
-    DB.get('settings', 'currentUser'),
-    DB.get('settings', 'permissionOverrides'),
-  ]);
-  if (userSetting?.value)      _currentUser = userSetting.value;
-  if (overridesSetting?.value) _overrides   = overridesSetting.value;
+      // Load permission overrides from Firestore
+      try {
+        const overridesSetting = await DB.get('settings', 'permissionOverrides');
+        if (overridesSetting?.value) _overrides = overridesSetting.value;
+      } catch (err) {
+        console.error('[Auth] Failed to load overrides:', err);
+      }
+      
+      resolve();
+    });
+  });
 }
 
 /**
  * Cloud-mode sign-in: authenticates with Firebase, then resolves the user's
  * role and display name from the Firestore users collection.
- * Returns the _currentUser object on success; throws on failure.
  */
 export async function login(email, password) {
-  if (!CLOUD_ENABLED) throw new Error('login() requires CLOUD_ENABLED=true');
-  const { firebaseSignIn, getFirestoreDB } = await import('../../core/api.js');
-  const { doc, getDoc } = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
-
   const credential = await firebaseSignIn(email, password);
   const uid = credential.user.uid;
 
@@ -96,24 +89,22 @@ export async function login(email, password) {
   if (!ROLE_PERMISSIONS[d.role]) throw new Error(`Unknown role: "${d.role}"`);
 
   _currentUser = {
-    userId: uid, email: credential.user.email,
+    userId: uid,
+    email: credential.user.email,
     displayName: d.displayName || credential.user.email,
-    role: d.role, isActive: d.isActive, lastLoginAt: Date.now(),
+    role: d.role,
+    isActive: d.isActive,
+    lastLoginAt: Date.now(),
   };
   return _currentUser;
 }
 
 /**
- * Sign out the current user (works for both cloud and local modes).
+ * Sign out the current user from Firebase.
  */
 export async function logout() {
   _currentUser = null;
-  if (CLOUD_ENABLED) {
-    const { firebaseSignOut } = await import('../../core/api.js');
-    await firebaseSignOut();
-  } else {
-    await DB.put('settings', { settingId: 'currentUser', value: null, updatedAt: Date.now() });
-  }
+  await firebaseSignOut();
 }
 
 /**
@@ -124,15 +115,10 @@ export function getCurrentUser() {
 }
 
 /**
- * Set the active user and persist it to the settings store.
+ * Legacy method for stub users — now only used for session persistence if needed.
  */
 export async function setCurrentUser(user) {
   _currentUser = user;
-  await DB.put('settings', {
-    settingId: 'currentUser',
-    value: user,
-    updatedAt: Date.now(),
-  });
 }
 
 /**
