@@ -178,6 +178,7 @@ function _buildVariantPricingForm(content, variants) {
       <th style="width:80px">Color</th>
       <th style="width:170px">Selling Price</th>
       <th style="width:170px">Compare-at Price</th>
+      <th style="width:130px">Effective Price</th>
     </tr></thead>`;
 
   const tbody = document.createElement('tbody');
@@ -195,7 +196,8 @@ function _buildVariantPricingForm(content, variants) {
       <td><input id="variant-compare-${safeId}" type="number" step="0.01" min="0"
                  class="form-input" style="width:130px"
                  value="${v.compareAtPrice != null ? esc(String(v.compareAtPrice)) : ''}"
-                 placeholder="Optional"></td>`;
+                 placeholder="Optional"></td>
+      <td style="font-size:13px;font-weight:600;color:var(--accent)" data-vid-eff="${safeId}">—</td>`;
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -600,6 +602,32 @@ export async function render(container, navigate, params = {}) {
 
   // Action bar (sticky bottom)
   _buildActionBar(pageEl, product, variants, navigate, returnTo, content);
+
+  // Live effective price per variant row — recalculate when selling price or campaign changes
+  if (variants.length > 0) {
+    function _refreshVariantEffectivePrices() {
+      const campaignId = content.querySelector('#campaign-select')?.value;
+      const campaign   = allCampaigns.find(c => c.campaignId === campaignId) || null;
+      const globalPrice = parseFloatOrNull(content.querySelector('#selling-price')?.value) ?? product.sellingPrice;
+      for (const v of variants) {
+        const vPrice = parseFloatOrNull(content.querySelector(`#variant-price-${v.variantId}`)?.value);
+        const eff = getEffectivePrice(
+          { sellingPrice: globalPrice },
+          campaign,
+          vPrice != null ? { sellingPrice: vPrice } : null
+        );
+        const cell = content.querySelector(`[data-vid-eff="${v.variantId}"]`);
+        if (cell) cell.textContent = eff != null ? formatCurrency(eff) : '—';
+      }
+    }
+    content.addEventListener('input',  e => {
+      if (e.target.id?.startsWith('variant-price-') || e.target.id === 'selling-price') _refreshVariantEffectivePrices();
+    });
+    content.addEventListener('change', e => {
+      if (e.target.id === 'campaign-select') _refreshVariantEffectivePrices();
+    });
+    _refreshVariantEffectivePrices();
+  }
 
   // Replace comma with dot in all number inputs (Turkish locale numpad support)
   pageEl.addEventListener('keydown', e => {
