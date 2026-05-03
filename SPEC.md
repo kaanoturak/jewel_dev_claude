@@ -533,6 +533,12 @@ variants {
   customAttributes:   { key: String, value: String }[]
   stockCount:         Integer >= 0
   isActive:           Boolean
+  costMaterial:       Number | null   — per-variant override; hydrated from product on first boot
+  costLabor:          Number | null
+  costPackaging:      Number | null
+  transferPrice:      Number | null   — computed by calculateVariantTransferPrice(); updated when Admin saves costs
+  sellingPrice:       Number | null   — per-variant override; falls back to product.sellingPrice
+  compareAtPrice:     Number | null
   createdAt:          Timestamp
   updatedAt:          Timestamp
 }

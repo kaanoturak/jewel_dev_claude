@@ -267,9 +267,14 @@ Gemini Code Assist Report
 
 ---
 
-## 15. Architectural Proposal: Per-Variant Pricing (Amazon-Style)
+## 15. Per-Variant Financial Architecture (IMPLEMENTED)
 
-**Status:** Proposed — NOT implemented. Requires explicit approval before work begins.
+**Status:** ✅ Complete — Per-Variant Financial Architecture epic fully implemented.
+
+### What Changed
+The `variants` store now autonomously holds its own `transferPrice` field, computed independently per variant using `calculateVariantTransferPrice(variant, productAdminConfig)` in `src/core/engine.js`. The Admin panel's "Save Costs" operation iterates all variants and persists their individual transfer prices. A boot-time migration (`src/app.js`) hydrates any pre-existing variants that lack cost fields and back-fills their `transferPrice`.
+
+The Sales panel variant pricing table now shows a live **Effective Price** column per row, with fallback to `product.sellingPrice` when no variant-level price is set.
 
 ### Request
 User requested "Amazon-style" variant pricing where the displayed price updates based on variant selection (e.g., size S = $49, size L = $59).

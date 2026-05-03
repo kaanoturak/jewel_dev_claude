@@ -116,6 +116,16 @@
 - [x] sales/index.js + product-queue.js: added All Products view (mode: 'all', PENDING_SALES + READY_FOR_ECOMMERCE)
 - [x] test/e2e.test.js: added steps 10–13 (rejection path, negative costs, campaign edge cases, double-save guard)
 
+### Phase 6 — Per-Variant Financial Architecture (COMPLETE)
+- [x] src/core/validator.js — VARIANT_SCHEMA now includes optional costMaterial/costLabor/costPackaging with min:0 rules
+- [x] src/panels/manufacturer/product-form.js — shared-mode toggle propagates global draft costs to all variants on revert
+- [x] src/panels/admin/product-detail.js — variant table now has inline-editable Material/Labor/Packaging columns; per-variant cost changes patch variant record only (never product costBase)
+- [x] src/core/engine.js — new `calculateVariantTransferPrice(variant, productAdminConfig)` pure function
+- [x] src/panels/admin/product-detail.js — "Save Costs" now iterates all variants, computes per-variant transferPrice via engine, persists to variants store and updates live Transfer Price cell
+- [x] src/panels/sales/product-detail.js — variant pricing table gains Effective Price read-only column with live recalculation on variant selling price or campaign change; fallback to product.sellingPrice
+- [x] src/modules/workflow/index.js — READY_FOR_ECOMMERCE readiness check extended: with variants, passes if any variant OR product has sellingPrice > 0; without variants, requires product.sellingPrice > 0
+- [x] src/app.js — boot-time migration hydrates missing variant costs from parent product and calculates transferPrice; idempotency guarded by `variant_migration_complete` settings flag
+
 ## Next Task — Resume Here
 Nothing remaining. All phases complete, all audit-identified bugs resolved, all critical test gaps filled.
 
