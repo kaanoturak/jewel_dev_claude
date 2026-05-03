@@ -811,6 +811,68 @@ async function testStep_SnapshotSync() {
   console.groupEnd();
 }
 
+async function testStep_ManufacturerDashboardFilter() {
+  console.group('16. Manufacturer dashboard: PENDING_SALES and READY_FOR_ECOMMERCE are hidden');
+
+  const HIDDEN_STATUSES = new Set(['PENDING_SALES', 'READY_FOR_ECOMMERCE']);
+
+  // ── Empty state: brand-new manufacturer has no products ──────────────��─────
+  const ghostUserId = 'e2e-ghost-mfr-999';
+  const ghostProducts = await DB.queryByIndex('products', 'createdBy', ghostUserId);
+  const ghostVisible  = (ghostProducts || []).filter(p => !HIDDEN_STATUSES.has(p.status));
+  assert('New manufacturer with no products sees empty list (onboarding state)',
+    ghostVisible.length === 0, `Found: ${ghostVisible.length}`);
+
+  // ── PENDING_SALES product is NOT visible to manufacturer ───────────────────
+  const productId = generateUUID();
+  _testProductIds.add(productId);
+  await safeCleanup(productId);
+
+  const sku = await generateProductSKU('Bracelet', 'Silver');
+  await DB.add('products', makeProduct(productId, sku));
+
+  // Advance through DRAFT → PENDING_ADMIN → PENDING_SALES
+  await Auth.setCurrentUser(MFR_USER);
+  await transition(productId, 'PENDING_ADMIN', MFR_USER.userId);
+  await Auth.setCurrentUser(ADMIN_USER);
+  await addAdminCosts(productId);
+  await transition(productId, 'PENDING_SALES', ADMIN_USER.userId);
+
+  const allMfrProducts = await DB.queryByIndex('products', 'createdBy', MFR_USER.userId);
+  const visibleToMfr   = (allMfrProducts || [])
+    .filter(p => p.id === productId && !HIDDEN_STATUSES.has(p.status));
+
+  assert('PENDING_SALES product is NOT visible in manufacturer dashboard',
+    visibleToMfr.length === 0, `Found: ${visibleToMfr.length}`);
+
+  // ── READY_FOR_ECOMMERCE product is NOT visible to manufacturer ─────────────
+  await Auth.setCurrentUser(SALES_USER);
+  await DB.patch('products', productId, { sellingPrice: 199 });
+  await transition(productId, 'READY_FOR_ECOMMERCE', SALES_USER.userId);
+
+  const allMfrProducts2 = await DB.queryByIndex('products', 'createdBy', MFR_USER.userId);
+  const visibleToMfr2   = (allMfrProducts2 || [])
+    .filter(p => p.id === productId && !HIDDEN_STATUSES.has(p.status));
+
+  assert('READY_FOR_ECOMMERCE product is NOT visible in manufacturer dashboard',
+    visibleToMfr2.length === 0, `Found: ${visibleToMfr2.length}`);
+
+  // ── DRAFT product IS visible to manufacturer ───────────────────────────────
+  const draftId = generateUUID();
+  _testProductIds.add(draftId);
+  await safeCleanup(draftId);
+  const draftSku = await generateProductSKU('Earring', 'Brass');
+  await Auth.setCurrentUser(MFR_USER);
+  await DB.add('products', makeProduct(draftId, draftSku));
+  const allMfrProducts3 = await DB.queryByIndex('products', 'createdBy', MFR_USER.userId);
+  const visibleDraft    = (allMfrProducts3 || [])
+    .filter(p => p.id === draftId && !HIDDEN_STATUSES.has(p.status));
+  assert('DRAFT product IS visible in manufacturer dashboard',
+    visibleDraft.length === 1, `Found: ${visibleDraft.length}`);
+
+  console.groupEnd();
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 async function run() {
@@ -841,6 +903,7 @@ async function run() {
     await testStep_DoubleSubmit();
     await testStep_VariantCostBase();
     await testStep_SnapshotSync();
+    await testStep_ManufacturerDashboardFilter();
   } catch (err) {
     console.error('[e2e] Test suite failed prematurely:', err);
     _failed++;
