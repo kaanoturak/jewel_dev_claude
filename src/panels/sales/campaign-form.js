@@ -264,6 +264,14 @@ export async function render(container, navigate, params = {}) {
     deleteBtn.style.marginLeft = 'auto';
     deleteBtn.addEventListener('click', async () => {
       if (!confirm('Delete this campaign? This cannot be undone.')) return;
+      
+      // Clear linkage from products before deleting campaign
+      if (c.productIds?.length > 0) {
+        await Promise.all(c.productIds.map(pid =>
+          DB.patch('products', pid, { activeCampaignId: null, updatedAt: Date.now() }).catch(() => {})
+        ));
+      }
+      
       await DB.delete('campaigns', params.id);
       navigate('dashboard');
     });
@@ -322,18 +330,36 @@ export async function render(container, navigate, params = {}) {
     const now  = Date.now();
 
     try {
+      let finalCampaignId = params.id;
       if (isEdit) {
         await DB.patch('campaigns', params.id, {
           name, discountType, discountValue, startsAt, endsAt, isActive,
           productIds, updatedBy: user?.userId, updatedAt: now,
         });
       } else {
+        finalCampaignId = generateUUID();
         await DB.add('campaigns', {
-          campaignId: generateUUID(),
+          campaignId: finalCampaignId,
           name, discountType, discountValue, startsAt, endsAt, isActive,
           productIds, createdBy: user?.userId, createdAt: now, updatedAt: now,
         });
       }
+
+      // Update linkage: products in this campaign should have activeCampaignId set
+      if (productIds.length > 0) {
+        await Promise.all(productIds.map(pid =>
+          DB.patch('products', pid, { activeCampaignId: finalCampaignId, updatedAt: now }).catch(() => {})
+        ));
+      }
+
+      // If editing, clear activeCampaignId for products removed from this campaign
+      if (isEdit && c.productIds) {
+        const removed = c.productIds.filter(pid => !productIds.includes(pid));
+        await Promise.all(removed.map(pid =>
+          DB.patch('products', pid, { activeCampaignId: null, updatedAt: now }).catch(() => {})
+        ));
+      }
+
       navigate('dashboard');
     } catch (err) {
       errorEl.innerHTML = `<p>${esc(err.message)}</p>`;

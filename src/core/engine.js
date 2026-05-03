@@ -92,7 +92,9 @@ function calcEffectivePrice(product, campaign, variant = null, channel = null) {
   if (campaign.endsAt && campaign.endsAt < now) return base;
 
   if (campaign.discountType === 'PERCENTAGE') {
-    return round2(Math.max(0, base * (1 - Number(campaign.discountValue) / 100)));
+    const val = Number(campaign.discountValue);
+    if (val > 100) console.warn(`[Engine] Percentage discount of ${val}% exceeds 100% for product. Price will floor at $0.`);
+    return round2(Math.max(0, base * (1 - val / 100)));
   }
   if (campaign.discountType === 'FIXED') {
     return round2(Math.max(0, base - Number(campaign.discountValue)));
