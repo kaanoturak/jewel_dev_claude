@@ -594,17 +594,20 @@ export async function render(container, navigate, params = {}) {
 
   pageEl.appendChild(content);
 
-  // Per-variant pricing (rendered above the default pricing form when variants exist)
-  if (variants.length > 0) _buildVariantPricingForm(content, variants);
+  // Per-variant pricing (only if enabled by Manufacturer)
+  const isVPEnabled = product.variantPricingEnabled === true;
+  if (variants.length > 0 && isVPEnabled) {
+    _buildVariantPricingForm(content, variants);
+  }
 
   // Pricing form (interactive)
-  _buildPricingForm(content, product, allCampaigns, variants.length > 0);
+  _buildPricingForm(content, product, allCampaigns, variants.length > 0 && isVPEnabled);
 
   // Action bar (sticky bottom)
   _buildActionBar(pageEl, product, variants, navigate, returnTo, content);
 
   // Live effective price per variant row — recalculate when selling price or campaign changes
-  if (variants.length > 0) {
+  if (variants.length > 0 && isVPEnabled) {
     function _refreshVariantEffectivePrices() {
       const campaignId = content.querySelector('#campaign-select')?.value;
       const campaign   = allCampaigns.find(c => c.campaignId === campaignId) || null;
@@ -612,7 +615,7 @@ export async function render(container, navigate, params = {}) {
       for (const v of variants) {
         const vPrice = parseFloatOrNull(content.querySelector(`#variant-price-${v.variantId}`)?.value);
         const eff = getEffectivePrice(
-          { sellingPrice: globalPrice },
+          { sellingPrice: globalPrice, variantPricingEnabled: true },
           campaign,
           vPrice != null ? { sellingPrice: vPrice } : null
         );

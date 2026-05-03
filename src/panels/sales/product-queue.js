@@ -15,6 +15,7 @@ export async function render(container, navigate, params = {}) {
     </div>`;
 
   let products;
+  let variants = [];
   try {
     if (isQueue) {
       products = await DB.queryByIndex('products', 'status', 'PENDING_SALES');
@@ -27,6 +28,7 @@ export async function render(container, navigate, params = {}) {
       ]);
       products = [...(pending || []), ...(ready || [])];
     }
+    variants = await DB.getAll('variants');
   } catch (err) {
     container.innerHTML = `
       <div class="view-placeholder">
@@ -64,18 +66,24 @@ export async function render(container, navigate, params = {}) {
         || (p.name || '').toLowerCase().includes(q)
         || (p.sku  || '').toLowerCase().includes(q)
       );
-      renderTable(tableWrap, filtered, navigate, mode);
+      renderTable(tableWrap, filtered, navigate, mode, variants);
     });
 
-    renderTable(tableWrap, products, navigate, mode);
+    renderTable(tableWrap, products, navigate, mode, variants);
     return;
   }
 
-  renderTable(container, products, navigate, mode);
+  renderTable(container, products, navigate, mode, variants);
 }
 
-function renderTable(container, products, navigate, mode) {
+function renderTable(container, products, navigate, mode, variants = []) {
   const isQueue = mode === 'queue';
+
+  const vByProd = (variants || []).reduce((acc, v) => {
+    if (!acc[v.productId]) acc[v.productId] = [];
+    acc[v.productId].push(v);
+    return acc;
+  }, {});
 
   container.querySelector('.card')?.remove();
 
@@ -132,7 +140,21 @@ function renderTable(container, products, navigate, mode) {
     adminTd.textContent = p.transferPrice != null ? formatCurrency(p.transferPrice) : '—';
 
     const sellingTd = document.createElement('td');
-    sellingTd.textContent = p.sellingPrice != null ? formatCurrency(p.sellingPrice) : '—';
+    let displayPrice = p.sellingPrice;
+    
+    if (p.variantPricingEnabled) {
+      const pvs = (vByProd[p.id] || []).filter(v => v.sellingPrice > 0);
+      if (pvs.length > 0) {
+        const minPrice = Math.min(...pvs.map(v => v.sellingPrice));
+        const maxPrice = Math.max(...pvs.map(v => v.sellingPrice));
+        if (minPrice === maxPrice) {
+          displayPrice = minPrice;
+        } else {
+          displayPrice = `From ${formatCurrency(minPrice)}`;
+        }
+      }
+    }
+    sellingTd.textContent = typeof displayPrice === 'string' ? displayPrice : (displayPrice != null ? formatCurrency(displayPrice) : '—');
 
     const statusTd = document.createElement('td');
     statusTd.appendChild(statusBadge(p.status));

@@ -77,10 +77,11 @@ function calcTransferPrice(product, costBase) {
  * Returns null when sellingPrice is not yet set.
  */
 function calcEffectivePrice(product, campaign, variant = null, channel = null) {
-  let base = Number(variant?.sellingPrice ?? product.sellingPrice);
+  const useVariant = product.variantPricingEnabled && variant;
+  let base = Number(useVariant ? (variant.sellingPrice ?? product.sellingPrice) : product.sellingPrice);
   
-  // Apply channel-specific override if present
-  if (channel && variant?.channelConfig?.[channel]?.sellingPrice != null) {
+  // Apply channel-specific override if present (only if variant pricing is enabled)
+  if (channel && useVariant && variant.channelConfig?.[channel]?.sellingPrice != null) {
     base = Number(variant.channelConfig[channel].sellingPrice);
   }
 

@@ -142,6 +142,7 @@ async function _saveProduct() {
       materials:            _draft.materials || null,
       careInstructions:     _draft.careInstructions || null,
       searchTags:           _draft.searchTags,
+      variantPricingEnabled: _draft.variantPricingEnabled === true,
       costMaterial:         Number(_draft.costMaterial)  || 0,
       costLabor:            Number(_draft.costLabor)     || 0,
       costPackaging:        Number(_draft.costPackaging) || 0,
@@ -173,6 +174,7 @@ async function _saveProduct() {
       materials:            _draft.materials || null,
       careInstructions:     _draft.careInstructions || null,
       searchTags:           _draft.searchTags,
+      variantPricingEnabled: _draft.variantPricingEnabled === true,
       costMaterial:         Number(_draft.costMaterial)  || 0,
       costLabor:            Number(_draft.costLabor)     || 0,
       costPackaging:        Number(_draft.costPackaging) || 0,
@@ -692,9 +694,35 @@ function _tabVariants() {
   const d = document.createElement('div');
   d.className = 'tab-panel';
 
+  // ─── Multi-pricing toggle ───────────────────────────────────────────────
+  const pricingToggle = document.createElement('div');
+  pricingToggle.style.cssText = 'margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)';
+  
+  const pLabel = document.createElement('label');
+  pLabel.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;'
+    + 'cursor:pointer;font-weight:600;color:var(--text)';
+  const pCheckbox = document.createElement('input');
+  pCheckbox.type    = 'checkbox';
+  pCheckbox.id      = 'variant-pricing-check';
+  pCheckbox.checked = _draft.variantPricingEnabled === true;
+  const pText  = document.createElement('span');
+  pText.textContent = 'Enable per-variant pricing (Amazon-style)';
+  pLabel.append(pCheckbox, pText);
+  pricingToggle.appendChild(pLabel);
+
+  const pHint = document.createElement('p');
+  pHint.style.cssText = 'font-size:12px;color:var(--text-muted);margin-top:4px;margin-left:26px';
+  pHint.textContent = 'When enabled, the Sales team can set different prices for each variant. If disabled, a single product price is used.';
+  pricingToggle.appendChild(pHint);
+  d.appendChild(pricingToggle);
+
+  pCheckbox.addEventListener('change', () => {
+    _draft.variantPricingEnabled = pCheckbox.checked;
+  });
+
   const header = document.createElement('div');
   header.className = 'section-header';
-  header.innerHTML = `<span class="section-title">Variants</span>`;
+  header.innerHTML = `<span class="section-title">Variant List</span>`;
 
   const addBtn = document.createElement('button');
   addBtn.className = 'btn btn--secondary btn--sm';
