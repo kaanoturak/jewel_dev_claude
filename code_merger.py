@@ -163,8 +163,8 @@ def merge_code_files():
                         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                             content = f.read()
                         
-                        out_f.write(f"\n{'='*70}\nDOSYA: {relative_path.replace(os.sep, '/')}\n{'='*70}\n\n")
-                        out_f.write(content.strip() + "\n\n")
+                        out_f.write(f'<file path="{relative_path.replace(os.sep, "/")}">\n')
+                        out_f.write(content.strip() + "\n</file>\n")
                         
                         stats['included'] += 1
                         stats['size'] += os.path.getsize(file_path)
