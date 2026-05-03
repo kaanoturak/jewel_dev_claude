@@ -1,4 +1,4 @@
-import { getCurrentUser, setCurrentUser } from '../../modules/auth/index.js';
+import { getCurrentUser, setCurrentUser, canDo } from '../../modules/auth/index.js';
 import { render as renderDashboard }     from './dashboard.js';
 import { render as renderProductForm }   from './product-form.js';
 import { render as renderProductView }   from './product-view.js';
@@ -19,6 +19,15 @@ let _navLinks   = null;
 let _currentView = null;
 
 function navigate(view, params = {}) {
+  const _role = getCurrentUser()?.role;
+  if (view === 'products/new' && !canDo(_role, 'CREATE_PRODUCT', { silent: true })) {
+    _contentEl.innerHTML = `<div class="alert alert--error" style="margin:28px">Permission denied: CREATE_PRODUCT has been revoked for your role.</div>`;
+    return;
+  }
+  if (view === 'products/edit' && !canDo(_role, 'EDIT_PRODUCT', { silent: true })) {
+    _contentEl.innerHTML = `<div class="alert alert--error" style="margin:28px">Permission denied: EDIT_PRODUCT has been revoked for your role.</div>`;
+    return;
+  }
   _currentView = view;
 
   // Update active nav link
@@ -134,6 +143,13 @@ export function mount(container) {
   // Cache refs
   _contentEl = container.querySelector('#mfr-content');
   _navLinks  = Array.from(container.querySelectorAll('.nav-link'));
+
+  // Hide create/edit entry points when the role lacks permission at mount time
+  if (!canDo(user?.role, 'CREATE_PRODUCT', { silent: true })) {
+    container.querySelector('[data-view="products/new"]')?.closest('li')?.remove();
+    const hdrBtn = container.querySelector('#btn-new-product');
+    if (hdrBtn) hdrBtn.style.display = 'none';
+  }
 
   // Nav clicks
   container.querySelector('#mfr-nav').addEventListener('click', (e) => {

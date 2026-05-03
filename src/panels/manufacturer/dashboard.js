@@ -1,5 +1,5 @@
 import DB                              from '../../core/db.js';
-import { getCurrentUser }              from '../../modules/auth/index.js';
+import { getCurrentUser, canDo }       from '../../modules/auth/index.js';
 import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/utils/index.js';
 
 // Statuses that allow the manufacturer to edit the product
@@ -64,7 +64,7 @@ function renderStatCards(container, products) {
 
 // ─── Revision alerts ──────────────────────────────────────────────────────────
 
-function renderRevisionSection(container, products, navigate) {
+function renderRevisionSection(container, products, navigate, canEditProducts) {
   const revisions = products.filter((p) =>
     p.status === 'REVISION_REQUESTED_BY_ADMIN'
   );
@@ -93,11 +93,13 @@ function renderRevisionSection(container, products, navigate) {
       </span>
     `;
 
-    const editBtn = document.createElement('button');
-    editBtn.className = 'btn btn--secondary btn--sm';
-    editBtn.textContent = 'Edit';
-    editBtn.addEventListener('click', () => navigate('products/edit', { id: product.id }));
-    row.appendChild(editBtn);
+    if (canEditProducts) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn btn--secondary btn--sm';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', () => navigate('products/edit', { id: product.id }));
+      row.appendChild(editBtn);
+    }
 
     list.appendChild(row);
   }
@@ -107,7 +109,7 @@ function renderRevisionSection(container, products, navigate) {
 
 // ─── Products table ───────────────────────────────────────────────────────────
 
-function renderProductsTable(container, products, navigate) {
+function renderProductsTable(container, products, navigate, canEditProducts) {
   const section = document.createElement('div');
   section.className = 'section';
 
@@ -186,9 +188,7 @@ function renderProductsTable(container, products, navigate) {
     const actionsTd = document.createElement('td');
     actionsTd.className = 'product-actions';
 
-    const canEdit = EDITABLE_STATUSES.has(product.status);
-
-    if (canEdit) {
+    if (canEditProducts && EDITABLE_STATUSES.has(product.status)) {
       const editBtn = document.createElement('button');
       editBtn.className = 'btn btn--secondary btn--sm';
       editBtn.textContent = 'Edit';
@@ -271,7 +271,10 @@ export async function render(container, navigate) {
     return;
   }
 
+  const user            = getCurrentUser();
+  const canEditProducts = canDo(user?.role, 'EDIT_PRODUCT', { silent: true });
+
   renderStatCards(container, products);
-  renderRevisionSection(container, products, navigate);
-  renderProductsTable(container, products, navigate);
+  renderRevisionSection(container, products, navigate, canEditProducts);
+  renderProductsTable(container, products, navigate, canEditProducts);
 }
