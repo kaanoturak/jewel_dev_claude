@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { validate, PRODUCT_SCHEMA } from './validator.js';
 
 // ─── Tenant Context ──────────────────────────────────────────────────────────
 
@@ -166,6 +167,29 @@ export async function runSafeMigration() {
   console.info('[Migration] Legacy vendor migration complete.');
 }
 
+/**
+ * Fetches dynamic attribute schema for a category from Firestore.
+ * Falls back to static PRODUCT_SCHEMA if collection is empty or not found.
+ */
+async function _getDynamicSchema(category) {
+  const db = getDB();
+  const coll = collection(db, 'attributes');
+  const q = query(coll, where('category', '==', category));
+  const snap = await getDocs(q).catch(() => ({ empty: true })); // Safe fallback
+
+  if (!snap || snap.empty) return PRODUCT_SCHEMA;
+
+  // Transform attribute docs into a validator-compatible schema
+  const schema = { ...PRODUCT_SCHEMA };
+  snap.docs.forEach(d => {
+    const attr = d.data();
+    if (attr.field && attr.rules) {
+      schema[attr.field] = attr.rules;
+    }
+  });
+  return schema;
+}
+
 // ─── CloudDB — mirrors the db.js public API exactly ──────────────────────────
 
 const CloudDB = {
@@ -206,6 +230,13 @@ const CloudDB = {
     await _validateOwnership(storeName, key);
     const finalRecord = _injectVendor(record);
 
+    // Dynamic Validation for Products
+    if (storeName === 'products') {
+      const schema = await _getDynamicSchema(finalRecord.category);
+      const { valid, errors } = validate(schema, finalRecord);
+      if (!valid) throw new Error(`Validation Failed: ${Object.values(errors).flat().join(', ')}`);
+    }
+
     // Intercept mediaBlobs to upload file to Storage
     if (storeName === 'mediaBlobs' && finalRecord.blob) {
       finalRecord.blob = await _uploadMedia(key, finalRecord.blob);
@@ -219,6 +250,13 @@ const CloudDB = {
     const keyPath = KEY_PATHS[storeName];
     const key     = record[keyPath];
     const finalRecord = _injectVendor(record);
+
+    // Dynamic Validation for Products
+    if (storeName === 'products') {
+      const schema = await _getDynamicSchema(finalRecord.category);
+      const { valid, errors } = validate(schema, finalRecord);
+      if (!valid) throw new Error(`Validation Failed: ${Object.values(errors).flat().join(', ')}`);
+    }
 
     if (key != null) {
       await _validateOwnership(storeName, key);
