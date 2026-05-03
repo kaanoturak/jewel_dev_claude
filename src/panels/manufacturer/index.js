@@ -2,16 +2,21 @@ import { getCurrentUser, setCurrentUser, canDo } from '../../modules/auth/index.
 import { render as renderDashboard }     from './dashboard.js';
 import { render as renderProductForm }   from './product-form.js';
 import { render as renderProductView }   from './product-view.js';
+import { render as renderProductQueue }  from './product-queue.js';
+import { render as renderStockView }     from './stock-view.js';
 
 // ─── Internal router ──────────────────────────────────────────────────────────
 // Views are keyed by a simple string path. Params are passed as a plain object.
 
 const VIEWS = {
-  dashboard:       renderDashboard,
-  'products/new':  renderProductForm,
-  'products/edit': renderProductForm,
-  'products/view': renderProductView,
-  account:         renderAccountStub,
+  dashboard:        renderDashboard,
+  'products/new':   renderProductForm,
+  'products/edit':  renderProductForm,
+  'products/view':  renderProductView,
+  'products/queue': renderProductQueue,
+  'products/all':   renderProductQueue,
+  stock:            renderStockView,
+  account:          renderAccountStub,
 };
 
 let _contentEl  = null;
@@ -55,11 +60,14 @@ function navigate(view, params = {}) {
 
 function viewTitle(view) {
   const titles = {
-    dashboard:       'Dashboard',
-    'products/new':  'New Product',
-    'products/edit': 'Edit Product',
-    'products/view': 'Product Detail',
-    account:         'Account',
+    dashboard:        'Dashboard',
+    'products/new':   'New Product',
+    'products/edit':  'Edit Product',
+    'products/view':  'Product Detail',
+    'products/queue': 'Action Required',
+    'products/all':   'All Products',
+    stock:            'Stock',
+    account:          'Account',
   };
   return titles[view] ?? view;
 }
@@ -109,6 +117,31 @@ export function mount(container) {
                 <path d="M8 1a.75.75 0 0 1 .75.75v5.5h5.5a.75.75 0 0 1 0 1.5h-5.5v5.5a.75.75 0 0 1-1.5 0v-5.5H1.75a.75.75 0 0 1 0-1.5h5.5V1.75A.75.75 0 0 1 8 1z"/>
               </svg>
               New Product
+            </a>
+          </li>
+          <li>
+            <a class="nav-link" data-view="products/queue" href="#">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v.793c.026.009.051.02.076.032L7.674 8.51c.206.1.446.1.652 0l6.598-3.185A.755.755 0 0 1 15 5.293V4.5A1.5 1.5 0 0 0 13.5 3h-11Z"/>
+                <path d="M15 6.954 8.978 9.86a2.25 2.25 0 0 1-1.956 0L1 6.954V11.5A1.5 1.5 0 0 0 2.5 13h11a1.5 1.5 0 0 0 1.5-1.5V6.954Z"/>
+              </svg>
+              Action Required
+            </a>
+          </li>
+          <li>
+            <a class="nav-link" data-view="products/all" href="#">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 1a.5.5 0 0 0-.5.5v3a.5.5 0 0 1-1 0v-3A1.5 1.5 0 0 1 1.5 0h3a.5.5 0 0 1 0 1h-3ZM11 .5a.5.5 0 0 1 .5-.5h3A1.5 1.5 0 0 1 16 1.5v3a.5.5 0 0 1-1 0v-3a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 1-.5-.5ZM.5 11a.5.5 0 0 1 .5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 1 0 1h-3A1.5 1.5 0 0 1 0 14.5v-3a.5.5 0 0 1 .5-.5Zm15 0a.5.5 0 0 1 .5.5v3a1.5 1.5 0 0 1-1.5 1.5h-3a.5.5 0 0 1 0-1h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 1 .5-.5ZM3 4.5a.5.5 0 0 1 1 0v7a.5.5 0 0 1-1 0v-7Zm2-1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5Zm2 1a.5.5 0 0 1 1 0v7a.5.5 0 0 1-1 0V4.5Zm2-1a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-1 0V4a.5.5 0 0 1 .5-.5Zm2 1a.5.5 0 0 1 1 0v7a.5.5 0 0 1-1 0v-7Z"/>
+              </svg>
+              All Products
+            </a>
+          </li>
+          <li>
+            <a class="nav-link" data-view="stock" href="#">
+              <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+              </svg>
+              Stock
             </a>
           </li>
           <li>
