@@ -134,14 +134,14 @@ def merge_code_files():
             out_f.write(f"  Dizin: {ROOT_FOLDER}\n{'='*70}\n\n")
             
             # 2. PROJE ŞEMASI (AĞAÇ)
-            out_f.write("PROJE ŞEMASI (Sadece Dahil Edilen Dosyalar):\n")
-            out_f.write(f"📂 {os.path.basename(ROOT_FOLDER) or 'Proje Kök Dizini'}\n")
             project_tree = generate_project_tree(ROOT_FOLDER)
+            out_f.write("<project_tree>\n")
+            out_f.write(f"📂 {os.path.basename(ROOT_FOLDER) or 'Proje Kök Dizini'}\n")
             if not project_tree.strip():
                 out_f.write("└── (İçerik bulunamadı veya tümü filtrelendi)\n")
             else:
                 out_f.write(project_tree)
-            out_f.write(f"\n{'='*70}\n\n")
+            out_f.write("</project_tree>\n\n")
             
             # 3. DOSYA İÇERİKLERİ
             for folder_path, subfolders, files in os.walk(ROOT_FOLDER):
