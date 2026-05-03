@@ -134,13 +134,43 @@ export function esc(str) {
 
 /**
  * Sanitize user-supplied HTML for safe innerHTML rendering.
- * Strips <script> blocks, event-handler attributes, and javascript: URIs
- * while preserving basic formatting tags (p, b, ul, li, etc.).
+ * Strips all tags except a safe subset (p, b, i, ul, li, br, strong, em)
+ * and removes all attributes to prevent XSS.
  */
 export function safeHtml(str) {
   if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '')
-    .replace(/javascript\s*:/gi, 'nojs:');
+  
+  const allowed = ['P', 'B', 'I', 'UL', 'LI', 'BR', 'STRONG', 'EM'];
+  
+  // Use a template element to parse HTML without executing scripts
+  const template = document.createElement('template');
+  template.innerHTML = str;
+  const fragment = template.content;
+
+  const sanitize = (node) => {
+    for (let i = node.childNodes.length - 1; i >= 0; i--) {
+      const child = node.childNodes[i];
+      if (child.nodeType === 1) { // Element
+        if (!allowed.includes(child.tagName)) {
+          // Not allowed: replace with text content to preserve readability but kill risk
+          const text = document.createTextNode(child.textContent);
+          node.replaceChild(text, child);
+        } else {
+          // Allowed: strip all attributes (kills on*, style, src, etc.)
+          while (child.attributes.length > 0) {
+            child.removeAttribute(child.attributes[0].name);
+          }
+          sanitize(child);
+        }
+      } else if (child.nodeType !== 3) { // Not element or text node (e.g. comment)
+        node.removeChild(child);
+      }
+    }
+  };
+
+  sanitize(fragment);
+  
+  const div = document.createElement('div');
+  div.appendChild(fragment);
+  return div.innerHTML;
 }
