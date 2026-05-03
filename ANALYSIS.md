@@ -51,7 +51,7 @@ Gemini Code Assist Report
    * Field Locking: Once a product is submitted (PENDING_ADMIN), all fields become read-only until a revision is requested.
 
   3.3 Workflow Behavior
-   * Allowed Transitions: DRAFT → PENDING_ADMIN, REVISION_REQUESTED_BY_ADMIN → PENDING_ADMIN, REVISION_REQUESTED_BY_SALES → PENDING_ADMIN.
+   * Allowed Transitions: DRAFT → PENDING_ADMIN, REVISION_REQUESTED_BY_ADMIN → PENDING_ADMIN.
    * Validation Logic: Submission requires completion of PRODUCT_SCHEMA and MANUFACTURER_COST_SCHEMA.
    * Revision Loops: Revisions appear in a dedicated queue; the Manufacturer must resolve notes before re-submitting to Admin.
 
@@ -110,8 +110,7 @@ Gemini Code Assist Report
 
   5.3 Workflow Behavior
    * Approval: PENDING_SALES → READY_FOR_ECOMMERCE.
-   * Revision: PENDING_SALES → REVISION_REQUESTED_BY_SALES. Note: This sends the product back to the Manufacturer's queue, but it must return to PENDING_ADMIN
-     next.
+   * Revision: PENDING_SALES → REVISION_REQUESTED_BY_SALES. This lands the product in the Admin queue (NOT Manufacturer). Admin then decides: forward back to Sales (PENDING_SALES) or escalate to Manufacturer (REVISION_REQUESTED_BY_ADMIN).
    * Rejection: Terminal transition to REJECTED.
 
   5.4 Relationship with Admin
@@ -162,12 +161,14 @@ Gemini Code Assist Report
        * PENDING_ADMIN → REJECTED (End).
        * PENDING_ADMIN → PENDING_SALES (Forward to Sales).
    4. Sales Review:
-       * PENDING_SALES → REVISION_REQUESTED_BY_SALES (Back to Manufacturer).
+       * PENDING_SALES → REVISION_REQUESTED_BY_SALES (To Admin queue — Admin decides next step).
        * PENDING_SALES → REJECTED (End).
        * PENDING_SALES → READY_FOR_ECOMMERCE (Publish).
 
   Sales Revision Loop:
-  Sales (REVISION_REQUESTED_BY_SALES) → Manufacturer (Edit & Submit) → Admin (Review & Approve) → Sales (Final Review).
+  Sales (REVISION_REQUESTED_BY_SALES) → Admin Queue → Admin decides:
+    (a) Forward: Admin → PENDING_SALES (Sales re-reviews immediately).
+    (b) Escalate: Admin → REVISION_REQUESTED_BY_ADMIN → Manufacturer fixes → PENDING_ADMIN → Admin approves → PENDING_SALES.
 
   ---
 
@@ -226,7 +227,7 @@ Gemini Code Assist Report
    * Snapshot Locking: Snapshots are taken on transitions (PENDING_ADMIN, PENDING_SALES, READY_FOR_ECOMMERCE, ARCHIVED).
    * Stock Synchronization: Stock is always variant-specific.
    * Terminal State Recovery: REJECTED and ARCHIVED require SUPER_ADMIN override to return to active workflow.
-   * Revision Loop Integrity: A Sales revision (REVISION_REQUESTED_BY_SALES) must return to Manufacturer, then pass through Admin (PENDING_ADMIN) again.
+   * Revision Loop Integrity: A Sales revision (REVISION_REQUESTED_BY_SALES) lands in the Admin queue. Admin either forwards directly to PENDING_SALES or escalates to REVISION_REQUESTED_BY_ADMIN (Manufacturer). Manufacturer never sees REVISION_REQUESTED_BY_SALES directly.
 
   ---
 
