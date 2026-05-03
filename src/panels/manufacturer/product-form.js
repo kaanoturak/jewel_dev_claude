@@ -1138,6 +1138,14 @@ export async function render(container, navigate, params = {}) {
   body.appendChild(_renderActiveTab(formPage));
   formPage.appendChild(body);
 
+  // Live-update header title as user types the product name
+  formPage.addEventListener('input', e => {
+    if (e.target.id === 'f-name') {
+      const name = e.target.value.trim();
+      titleEl.textContent = name || (params.id ? 'Edit Product' : 'New Product');
+    }
+  });
+
   // Replace comma with dot in all number inputs (Turkish locale numpad support)
   formPage.addEventListener('keydown', e => {
     if (e.key === ',' && e.target.matches('input[type="number"]')) {
