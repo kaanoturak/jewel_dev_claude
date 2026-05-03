@@ -23,6 +23,7 @@ let _productId         = null;
 let _draft             = {};
 let _variants          = [];
 let _pendingBlobs      = {};   // blobId → { file: File, objectURL: string }
+let _deletedImageIds   = [];   // blobIds of saved images removed by the user
 let _deletedVariantIds = [];
 let _sharedCostMode    = true;
 let _activeTab         = 0;
@@ -272,6 +273,12 @@ async function _saveProduct() {
     }
   }
 
+  // Delete orphaned blobs from images removed by the user
+  for (const blobId of _deletedImageIds) {
+    await DB.delete('mediaBlobs', blobId).catch(() => {});
+  }
+  _deletedImageIds = [];
+
   // Delete removed variants
   for (const vId of _deletedVariantIds) {
     await DB.delete('variants', vId).catch(() => {});
@@ -510,6 +517,8 @@ function _renderGrid(grid) {
       if (_pendingBlobs[img.id]) {
         URL.revokeObjectURL(_pendingBlobs[img.id].objectURL);
         delete _pendingBlobs[img.id];
+      } else {
+        _deletedImageIds.push(img.id);
       }
       _draft.images.splice(i, 1);
       if (_draft.primaryImageIndex >= _draft.images.length) {
@@ -1035,6 +1044,7 @@ export async function render(container, navigate, params = {}) {
   _navigate          = navigate;
   _activeTab         = 0;
   _pendingBlobs      = {};
+  _deletedImageIds   = [];
   _deletedVariantIds = [];
   _sharedCostMode    = true;
 
