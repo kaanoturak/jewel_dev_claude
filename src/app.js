@@ -108,10 +108,11 @@ async function boot() {
   const appEl = document.getElementById('app');
 
   // Initialize Firebase and the cloud adapter before Auth.init()
-  const { initFirebase } = await import('./core/api.js');
+  const { initFirebase, registerUserGetter } = await import('./core/api.js');
   await initFirebase();
 
   await Auth.init();
+  registerUserGetter(Auth.getCurrentUser);
   registerAuth(Auth);
   await _runVariantMigrationIfNeeded();
 

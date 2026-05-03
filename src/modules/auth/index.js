@@ -51,6 +51,7 @@ export async function init() {
               email: fbUser.email,
               displayName: d.displayName || fbUser.email,
               role: d.role,
+              vendorId: d.vendorId || null, // Platform admins have null
               isActive: d.isActive,
               lastLoginAt: Date.now(),
             };
@@ -93,6 +94,7 @@ export async function login(email, password) {
     email: credential.user.email,
     displayName: d.displayName || credential.user.email,
     role: d.role,
+    vendorId: d.vendorId || null,
     isActive: d.isActive,
     lastLoginAt: Date.now(),
   };
