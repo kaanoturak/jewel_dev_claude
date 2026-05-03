@@ -154,12 +154,24 @@ export async function render(container, navigate, params = {}) {
 
   body.appendChild(labelRow('campaign-value', 'Discount Value', valueWrap, true));
 
-  // Dates
-  const startsInp = formInput('campaign-starts', 'datetime-local', tsToDatetimeLocal(c.startsAt));
-  body.appendChild(labelRow('campaign-starts', 'Starts At', startsInp, true));
+  // Dates — split into date + time so the time picker always shows 24h (HH:mm)
+  const _startsDT = tsToDatetimeLocal(c.startsAt).split('T');
+  const startsDateInp = formInput('campaign-starts-date', 'date', _startsDT[0] || '');
+  const startsTimeInp = formInput('campaign-starts-time', 'time', _startsDT[1] || '');
+  startsTimeInp.style.cssText = 'width:120px';
+  const startsWrap = document.createElement('div');
+  startsWrap.style.cssText = 'display:flex;gap:8px;align-items:center';
+  startsWrap.append(startsDateInp, startsTimeInp);
+  body.appendChild(labelRow('campaign-starts', 'Starts At', startsWrap, true));
 
-  const endsInp = formInput('campaign-ends', 'datetime-local', tsToDatetimeLocal(c.endsAt));
-  body.appendChild(labelRow('campaign-ends', 'Ends At', endsInp, false, 'Leave blank for no end date'));
+  const _endsDT = tsToDatetimeLocal(c.endsAt).split('T');
+  const endsDateInp = formInput('campaign-ends-date', 'date', _endsDT[0] || '');
+  const endsTimeInp = formInput('campaign-ends-time', 'time', _endsDT[1] || '');
+  endsTimeInp.style.cssText = 'width:120px';
+  const endsWrap = document.createElement('div');
+  endsWrap.style.cssText = 'display:flex;gap:8px;align-items:center';
+  endsWrap.append(endsDateInp, endsTimeInp);
+  body.appendChild(labelRow('campaign-ends', 'Ends At', endsWrap, false, 'Leave blank for no end date'));
 
   // Active toggle
   const activeCheck = document.createElement('input');
@@ -266,8 +278,12 @@ export async function render(container, navigate, params = {}) {
     const name         = document.getElementById('campaign-name').value.trim();
     const discountType = document.getElementById('campaign-type').value;
     const discountValue = parseFloat(document.getElementById('campaign-value').value);
-    const startsAt     = datetimeLocalToTs(document.getElementById('campaign-starts').value);
-    const endsAt       = datetimeLocalToTs(document.getElementById('campaign-ends').value);
+    const _sd = document.getElementById('campaign-starts-date').value;
+    const _st = document.getElementById('campaign-starts-time').value || '00:00';
+    const startsAt = _sd ? datetimeLocalToTs(`${_sd}T${_st}`) : null;
+    const _ed = document.getElementById('campaign-ends-date').value;
+    const _et = document.getElementById('campaign-ends-time').value || '00:00';
+    const endsAt = _ed ? datetimeLocalToTs(`${_ed}T${_et}`) : null;
     const isActive     = document.getElementById('campaign-active').checked;
     const scope        = document.getElementById('campaign-scope').value;
     const productIds   = scope === 'selected'
