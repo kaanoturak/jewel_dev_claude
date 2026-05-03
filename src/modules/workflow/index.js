@@ -12,14 +12,16 @@ import { getCurrentUser, canTransition }           from '../auth/index.js';
  * SUPER_ADMIN bypasses this map entirely (all transitions allowed).
  */
 export const ALLOWED_TRANSITIONS = {
-  DRAFT:                       ['PENDING_ADMIN'],
-  PENDING_ADMIN:               ['PENDING_SALES', 'REVISION_REQUESTED_BY_ADMIN', 'REJECTED', 'ARCHIVED'],
-  REVISION_REQUESTED_BY_ADMIN: ['PENDING_ADMIN', 'ARCHIVED'],
-  PENDING_SALES:               ['READY_FOR_ECOMMERCE', 'REVISION_REQUESTED_BY_SALES', 'REJECTED', 'ARCHIVED'],
+  DRAFT:                       ['PENDING_ADMIN', 'PENDING_APPROVAL', 'PUBLISHED', 'READY_FOR_ECOMMERCE'],
+  PENDING_ADMIN:               ['PENDING_SALES', 'REVISION_REQUESTED_BY_ADMIN', 'REJECTED', 'ARCHIVED', 'PUBLISHED', 'READY_FOR_ECOMMERCE'],
+  PENDING_APPROVAL:            ['PUBLISHED', 'REVISION_REQUESTED_BY_ADMIN', 'REJECTED', 'ARCHIVED'],
+  REVISION_REQUESTED_BY_ADMIN: ['PENDING_ADMIN', 'PENDING_APPROVAL', 'ARCHIVED'],
+  PENDING_SALES:               ['READY_FOR_ECOMMERCE', 'PUBLISHED', 'REVISION_REQUESTED_BY_SALES', 'REJECTED', 'ARCHIVED'],
   REVISION_REQUESTED_BY_SALES: ['PENDING_SALES', 'REVISION_REQUESTED_BY_ADMIN', 'ARCHIVED'],
   READY_FOR_ECOMMERCE:         ['ARCHIVED'],
-  REJECTED:                    [],  // Terminal for non-SUPER_ADMIN
-  ARCHIVED:                    [],  // Soft-delete; recoverable only by SUPER_ADMIN override
+  PUBLISHED:                   ['ARCHIVED'],
+  REJECTED:                    [],
+  ARCHIVED:                    [],
 };
 
 /**
@@ -53,7 +55,7 @@ function _requireNotes(toStatus, notes) {
 }
 
 function _validateProductReadiness(product, toStatus, variants = []) {
-  if (toStatus === 'PENDING_ADMIN') {
+  if (toStatus === 'PENDING_ADMIN' || toStatus === 'PENDING_APPROVAL') {
     const r1 = validate(PRODUCT_SCHEMA, product);
     const r2 = validate(MANUFACTURER_COST_SCHEMA, product);
     const allErrors = { ...r1.errors, ...r2.errors };
@@ -75,7 +77,7 @@ function _validateProductReadiness(product, toStatus, variants = []) {
     return;
   }
 
-  if (toStatus === 'READY_FOR_ECOMMERCE') {
+  if (toStatus === 'READY_FOR_ECOMMERCE' || toStatus === 'PUBLISHED') {
     const globalPrice = Number(product.sellingPrice) > 0;
     if (variants.length > 0) {
       const anyVariantPrice = variants.some(v => Number(v.sellingPrice) > 0);
@@ -122,14 +124,14 @@ function _buildProductUpdates(product, toStatus, userId, notes, now) {
     updates.adminReviewedAt  = now;
   }
 
-  if (toStatus === 'READY_FOR_ECOMMERCE') {
+  if (toStatus === 'READY_FOR_ECOMMERCE' || toStatus === 'PUBLISHED') {
     updates.revisionNotes   = null;
     updates.salesReviewedBy = userId;
     updates.salesReviewedAt = now;
   }
 
   // Re-submitting after revision — clear outstanding notes.
-  if (toStatus === 'PENDING_ADMIN') {
+  if (toStatus === 'PENDING_ADMIN' || toStatus === 'PENDING_APPROVAL') {
     updates.revisionNotes = null;
   }
 
@@ -191,6 +193,11 @@ export async function transition(productId, toStatus, userId, notes = null) {
   const role = user.role;
 
   // ── 3. Role permission ─────────────────────────────────────────────────────
+  // If vendor tries to publish directly, check requireModeration
+  if (role === 'MANUFACTURER' && (toStatus === 'PUBLISHED' || toStatus === 'READY_FOR_ECOMMERCE') && product.requireModeration !== false) {
+    throw new Error('transition: moderation is required for this product; cannot publish directly');
+  }
+
   if (!canTransition(role, fromStatus, toStatus)) {
     throw new Error(
       `transition: role "${role}" is not permitted to move a product from "${fromStatus}" to "${toStatus}"`
@@ -212,7 +219,7 @@ export async function transition(productId, toStatus, userId, notes = null) {
   _requireNotes(toStatus, notes);
 
   // ── 6. Business-rule readiness ─────────────────────────────────────────────
-  const variants = toStatus === 'READY_FOR_ECOMMERCE'
+  const variants = (toStatus === 'READY_FOR_ECOMMERCE' || toStatus === 'PUBLISHED')
     ? (await DB.queryByIndex('variants', 'productId', productId) || [])
     : [];
   _validateProductReadiness(product, toStatus, variants);
@@ -221,10 +228,9 @@ export async function transition(productId, toStatus, userId, notes = null) {
   const now     = Date.now();
   const updates = _buildProductUpdates(product, toStatus, userId, notes, now);
 
-  // Save snapshot before updating the product so snapshotData reflects the
-  // state at the point the transition was triggered, but with updated values.
+  // Save snapshot before updating the product
   const snapshotKey = `${fromStatus}:${toStatus}`;
-  if (SNAPSHOT_TRIGGERS.has(snapshotKey) || toStatus === 'ARCHIVED') {
+  if (SNAPSHOT_TRIGGERS.has(snapshotKey) || toStatus === 'ARCHIVED' || toStatus === 'PUBLISHED') {
     await _saveVersionSnapshot({ ...product, ...updates }, toStatus, userId, now);
   }
 

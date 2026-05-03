@@ -51,6 +51,8 @@ export const PRODUCT_STATUSES = Object.freeze([
   'PENDING_SALES',
   'REVISION_REQUESTED_BY_SALES',
   'READY_FOR_ECOMMERCE',
+  'PENDING_APPROVAL',
+  'PUBLISHED',
   'REJECTED',
   'ARCHIVED',
 ]);
@@ -76,6 +78,8 @@ export const STATUS_META = Object.freeze({
   PENDING_SALES:               { label: 'Pending Sales',        color: 'indigo' },
   REVISION_REQUESTED_BY_SALES: { label: 'Sales Revision',       color: 'amber'  },
   READY_FOR_ECOMMERCE:         { label: 'Ready for E-Commerce', color: 'green'  },
+  PENDING_APPROVAL:            { label: 'Pending Approval',     color: 'blue'   },
+  PUBLISHED:                   { label: 'Published',            color: 'green'  },
   REJECTED:                    { label: 'Rejected',             color: 'red'    },
   ARCHIVED:                    { label: 'Archived',             color: 'stone'  },
 });

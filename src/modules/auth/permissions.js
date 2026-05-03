@@ -34,7 +34,6 @@ export const FIELD_GROUPS = {
     'sellingPrice', 'compareAtPrice', 'activeCampaignId',
   ],
 };
-
 export const ROLE_PERMISSIONS = {
   MANUFACTURER: {
     actions: [
@@ -44,7 +43,10 @@ export const ROLE_PERMISSIONS = {
     fields: FIELD_GROUPS.MANUFACTURER,
     transitions: [
       'DRAFT:PENDING_ADMIN',
+      'DRAFT:PENDING_APPROVAL',
+      'DRAFT:PUBLISHED',
       'REVISION_REQUESTED_BY_ADMIN:PENDING_ADMIN',
+      'REVISION_REQUESTED_BY_ADMIN:PENDING_APPROVAL',
     ],
     panels: ['manufacturer'],
   },
@@ -62,6 +64,9 @@ export const ROLE_PERMISSIONS = {
       'PENDING_ADMIN:PENDING_SALES',
       'PENDING_ADMIN:REVISION_REQUESTED_BY_ADMIN',
       'PENDING_ADMIN:REJECTED',
+      'PENDING_APPROVAL:PUBLISHED',
+      'PENDING_APPROVAL:REVISION_REQUESTED_BY_ADMIN',
+      'PENDING_APPROVAL:REJECTED',
       'REVISION_REQUESTED_BY_SALES:PENDING_SALES',
       'REVISION_REQUESTED_BY_SALES:REVISION_REQUESTED_BY_ADMIN',
       'REVISION_REQUESTED_BY_SALES:REJECTED',
@@ -79,11 +84,13 @@ export const ROLE_PERMISSIONS = {
     fields: FIELD_GROUPS.SALES,
     transitions: [
       'PENDING_SALES:READY_FOR_ECOMMERCE',
+      'PENDING_SALES:PUBLISHED',
       'PENDING_SALES:REVISION_REQUESTED_BY_SALES',
       'PENDING_SALES:REJECTED',
     ],
     panels: ['sales'],
   },
+...
   SUPER_ADMIN: {
     actions: Object.values(ACTIONS),
     fields: [
