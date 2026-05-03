@@ -12,7 +12,9 @@
       "Bash(printf '#!/bin/sh\\\\nsed -i \"s/^pick 3a4b8f2.*/reword 3a4b8f2 ilk commit/\" \"$1\"\\\\n')",
       "Bash(printf '#!/bin/sh\\\\nprintf \"chore: initial project setup\\\\n\" > \"$1\"\\\\n')",
       "Bash(chmod +x /tmp/seq_edit.sh /tmp/msg_edit.sh)",
-      "Bash(GIT_SEQUENCE_EDITOR=/tmp/seq_edit.sh GIT_EDITOR=/tmp/msg_edit.sh git rebase -i --root)"
+      "Bash(GIT_SEQUENCE_EDITOR=/tmp/seq_edit.sh GIT_EDITOR=/tmp/msg_edit.sh git rebase -i --root)",
+      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('code_merger.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('code_merger.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }

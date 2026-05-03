@@ -36,7 +36,7 @@ You operate in a strict self-looping mechanism. For every iteration, you MUST fo
 ## STEP 4: VERIFY & COMMIT (FINALIZE)
 Run tests (if applicable) to ensure you didn't break the build.
 - Execute: `git add .` (CRITICAL: Ensure ALL modified files, including hidden ones like `.claude/settings.local.json`, are staged!)
-- Execute: `git commit -m "<type>: <concise description of the single atomic change> [agent:<your-agent-name> | model:<your-model-name>]"`
+- Execute: `git commit -m "<type>: <concise description of the single atomic change> [<your-agent-name> | <your-model-name>]"`
   🚨 **CRITICAL RULE:** You MUST append the `[agent:X | model:Y]` tag to the end of your commit message! Do NOT forget this.
   *(Example: `git commit -m "feat: implement per-variant pricing schema [agent:gemini-cli | model:pro]"`)*
 - Execute: `git push origin main`
