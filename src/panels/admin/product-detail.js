@@ -127,6 +127,16 @@ function _renderVariants(variants) {
       <td>${esc(v.color || '—')}</td>
       <td>${v.weight != null ? `${v.weight} g` : '—'}</td>
       <td>${v.stockCount ?? 0}</td>
+      <td><input class="form-input variant-cost-inp" type="number" step="0.01" min="0"
+                 style="width:90px" data-vid="${esc(v.variantId)}" data-f="costMaterial"
+                 value="${v.costMaterial != null ? v.costMaterial : ''}"></td>
+      <td><input class="form-input variant-cost-inp" type="number" step="0.01" min="0"
+                 style="width:90px" data-vid="${esc(v.variantId)}" data-f="costLabor"
+                 value="${v.costLabor != null ? v.costLabor : ''}"></td>
+      <td><input class="form-input variant-cost-inp" type="number" step="0.01" min="0"
+                 style="width:90px" data-vid="${esc(v.variantId)}" data-f="costPackaging"
+                 value="${v.costPackaging != null ? v.costPackaging : ''}"></td>
+      <td style="font-size:12px;color:var(--text-muted)" data-vid-tp="${esc(v.variantId)}">${v.transferPrice != null ? formatCurrency(v.transferPrice) : '—'}</td>
       <td>${v.isActive !== false
             ? '<span class="badge badge--green">Active</span>'
             : '<span class="badge badge--stone">Inactive</span>'}</td>
@@ -135,7 +145,8 @@ function _renderVariants(variants) {
   const tableHTML = `
     <table class="products-table" style="margin-top:4px">
       <thead>
-        <tr><th>SKU</th><th>Size</th><th>Color</th><th>Weight</th><th>Stock</th><th>Status</th></tr>
+        <tr><th>SKU</th><th>Size</th><th>Color</th><th>Weight</th><th>Stock</th>
+            <th>Material $</th><th>Labor $</th><th>Packaging $</th><th>Transfer Price</th><th>Status</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
@@ -456,6 +467,16 @@ export async function render(container, navigate, params = {}) {
   content.innerHTML += _renderProductInfo(product);
   content.innerHTML += _renderManufacturerCosts(product);
   content.innerHTML += _renderVariants(variants);
+
+  // Inline variant cost editing — patch only variant record, never touches product costBase/transferPrice
+  content.addEventListener('change', async e => {
+    const inp = e.target;
+    if (!inp.matches('.variant-cost-inp')) return;
+    const variantId = inp.dataset.vid;
+    const field     = inp.dataset.f;
+    const val       = parseFloat(inp.value);
+    await DB.patch('variants', variantId, { [field]: isNaN(val) ? null : val }).catch(() => {});
+  });
 
   pageEl.appendChild(content);
 
