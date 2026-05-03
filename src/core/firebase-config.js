@@ -24,5 +24,37 @@ export const FIREBASE_CONFIG = {
   appId:             'REPLACE_WITH_YOUR_APP_ID',
 };
 
-// Firebase SDK version pinned here — update in one place if you need to upgrade.
 export const FIREBASE_VERSION = '10.12.0';
+
+// ─── Initialization ──────────────────────────────────────────────────────────
+
+import { initializeApp } from 'firebase/app';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
+
+let _app     = null;
+let _db      = null;
+let _auth    = null;
+let _storage = null;
+
+export async function initFirebase() {
+  if (_app) return { _app, _db, _auth, _storage };
+
+  _app = initializeApp(FIREBASE_CONFIG);
+  
+  // Enable offline persistence (Mimics IndexedDB behavior for UI responsiveness)
+  _db = initializeFirestore(_app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+
+  _auth    = getAuth(_app);
+  _storage = getStorage(_app);
+
+  console.info('[TuguPIM] Firebase Initialized with Persistent Cache');
+  return { _app, _db, _auth, _storage };
+}
+
+export const getDB      = () => _db;
+export const getAuthInst = () => _auth;
+export const getStore    = () => _storage;
