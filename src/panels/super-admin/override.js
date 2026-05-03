@@ -23,7 +23,8 @@ export async function render(container) {
 
   let products;
   try {
-    products = await DB.getAll('products');
+    const raw = await DB.getAll('products');
+    products = (raw || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   } catch (err) {
     container.innerHTML = `
       <div class="view-placeholder">
