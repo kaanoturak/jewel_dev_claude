@@ -1,5 +1,5 @@
 import DB                              from '../../core/db.js';
-import { calculate }                   from '../../core/engine.js';
+import { calculate, calculateVariantTransferPrice } from '../../core/engine.js';
 import { transition }                  from '../../modules/workflow/index.js';
 import { getCurrentUser }              from '../../modules/auth/index.js';
 import { statusBadge, formatCurrency, formatDate, formatRelativeTime, esc, safeHtml } from '../../shared/utils/index.js';
@@ -245,7 +245,7 @@ function _collectAdminCosts(container) {
 
 // ─── Action bar ───────────────────────────────────────────────────────────────
 
-function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) {
+function _buildActionBar(pageEl, product, variants, navigate, returnTo, contentContainer) {
   const isAdminPending    = product.status === 'PENDING_ADMIN';
   const isSalesRevision   = product.status === 'REVISION_REQUESTED_BY_SALES';
   const isActionable      = isAdminPending || isSalesRevision;
@@ -325,13 +325,23 @@ function _buildActionBar(pageEl, product, navigate, returnTo, contentContainer) 
       alert('Target Margin % is required before saving.');
       return false;
     }
-    const { transferPrice } = calculate({ ...product, ...costs });
+    const mergedProduct = { ...product, ...costs };
+    const { transferPrice } = calculate(mergedProduct);
     await DB.patch('products', product.id, {
       ...costs,
       transferPrice,
       updatedBy: user?.userId,
       updatedAt: Date.now(),
     });
+    // Recalculate and persist transfer price for every variant
+    for (const v of variants) {
+      const vtp = calculateVariantTransferPrice(v, mergedProduct);
+      if (vtp !== null) {
+        await DB.patch('variants', v.variantId, { transferPrice: vtp });
+        const cell = contentContainer.querySelector(`[data-vid-tp="${esc(v.variantId)}"]`);
+        if (cell) cell.textContent = formatCurrency(vtp);
+      }
+    }
     return true;
   }
 
@@ -484,7 +494,7 @@ export async function render(container, navigate, params = {}) {
   _buildAdminCostForm(content, product);
 
   // Action bar (sticky bottom)
-  _buildActionBar(pageEl, product, navigate, returnTo, content);
+  _buildActionBar(pageEl, product, variants, navigate, returnTo, content);
 
   // Replace comma with dot in all number inputs (Turkish locale numpad support)
   pageEl.addEventListener('keydown', e => {

@@ -103,3 +103,17 @@ export function calculate(product, campaign = null, variant = null) {
 export function getEffectivePrice(product, campaign, variant = null) {
   return calcEffectivePrice(product, campaign, variant);
 }
+
+/**
+ * Compute transfer price for a single variant using its own cost fields
+ * and the admin-level config from the parent product.
+ * Does NOT use or modify product-level costBase.
+ */
+export function calculateVariantTransferPrice(variant, productAdminConfig) {
+  const base = round2(
+    (Number(variant.costMaterial)  || 0) +
+    (Number(variant.costLabor)     || 0) +
+    (Number(variant.costPackaging) || 0)
+  );
+  return calcTransferPrice(productAdminConfig, base);
+}
