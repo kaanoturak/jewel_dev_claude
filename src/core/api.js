@@ -11,7 +11,7 @@
 import { FIREBASE_CONFIG, initFirebase, getDB, getAuthInst, getStore } from './firebase-config.js';
 import { 
   doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, 
-  collection, query, where, runTransaction 
+  collection, query, where, runTransaction, writeBatch 
 } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -105,6 +105,65 @@ export async function firebaseSignIn(email, password) {
 
 export async function firebaseSignOut() {
   return signOut(getAuthInst());
+}
+
+/**
+ * Safe Data Migration: Assigns 'LEGACY-VENDOR-001' to all existing records
+ * that are missing a vendorId. Idempotent and resumable.
+ */
+export async function runSafeMigration() {
+  const db = getDB();
+  const migrationKey = 'migration_legacy_vendor_complete';
+  const legacyVendorId = 'LEGACY-VENDOR-001';
+
+  const statusSnap = await getDoc(doc(db, 'settings', migrationKey));
+  if (statusSnap.exists() && statusSnap.data().value === true) {
+    console.info('[Migration] Legacy vendor migration already completed.');
+    return;
+  }
+
+  const collectionsToMigrate = [
+    'products', 'variants', 'campaigns', 'mediaBlobs', 'auditLog', 'users'
+  ];
+
+  console.info('[Migration] Starting legacy vendor migration...');
+
+  for (const collName of collectionsToMigrate) {
+    const collRef = collection(db, collName);
+    // Note: We can't use the scoped CloudDB.getAll because it filters by vendorId
+    const snap = await getDocs(collRef);
+    let batch = writeBatch(db);
+    let count = 0;
+    let totalUpdated = 0;
+
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (!data.vendorId) {
+        batch.update(d.ref, { vendorId: legacyVendorId });
+        count++;
+        totalUpdated++;
+
+        if (count === 500) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+    }
+
+    if (count > 0) {
+      await batch.commit();
+    }
+    console.info(`[Migration] Updated ${totalUpdated} records in "${collName}"`);
+  }
+
+  await setDoc(doc(db, 'settings', migrationKey), {
+    settingId: migrationKey,
+    value: true,
+    completedAt: Date.now()
+  });
+
+  console.info('[Migration] Legacy vendor migration complete.');
 }
 
 // ─── CloudDB — mirrors the db.js public API exactly ──────────────────────────
