@@ -28,6 +28,7 @@ let _deletedVariantIds = [];
 let _sharedCostMode    = true;
 let _activeTab         = 0;
 let _navigate          = null;
+let _returnTo          = 'dashboard';
 let _saving            = false; // guard against double-save race
 
 const TABS = [
@@ -987,7 +988,7 @@ function _tabReview(formPage) {
       if (andSubmit) {
         const user = getCurrentUser();
         await transition(_productId, 'PENDING_ADMIN', user.userId);
-        _navigate('dashboard');
+        _navigate(_returnTo);
       } else {
         const badge = formPage.querySelector('.form-topbar-sku');
         if (badge && _draft.sku) badge.textContent = `SKU: ${_draft.sku}`;
@@ -1048,6 +1049,7 @@ function _renderActiveTab(formPage) {
 
 export async function render(container, navigate, params = {}) {
   _navigate          = navigate;
+  _returnTo          = params.returnTo || 'dashboard';
   _activeTab         = 0;
   _pendingBlobs      = {};
   _deletedImageIds   = [];
@@ -1092,7 +1094,7 @@ export async function render(container, navigate, params = {}) {
   const backBtn = document.createElement('button');
   backBtn.className   = 'btn btn--ghost btn--sm';
   backBtn.textContent = '← Back';
-  backBtn.addEventListener('click', () => navigate('dashboard'));
+  backBtn.addEventListener('click', () => navigate(_returnTo));
 
   const titleEl = document.createElement('span');
   titleEl.className   = 'form-topbar-title';

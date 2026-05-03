@@ -240,7 +240,7 @@ export async function render(container, navigate, params = {}) {
   const backBtn = document.createElement('button');
   backBtn.className   = 'btn btn--ghost btn--sm';
   backBtn.textContent = '← Back';
-  backBtn.addEventListener('click', () => navigate('dashboard'));
+  backBtn.addEventListener('click', () => navigate(params.returnTo || 'dashboard'));
 
   const titleEl = document.createElement('span');
   titleEl.style.cssText  = 'flex:1;font-size:14px;font-weight:600';
@@ -253,7 +253,7 @@ export async function render(container, navigate, params = {}) {
     const editBtn = document.createElement('button');
     editBtn.className   = 'btn btn--secondary btn--sm';
     editBtn.textContent = 'Edit Product';
-    editBtn.addEventListener('click', () => navigate('products/edit', { id: product.id }));
+    editBtn.addEventListener('click', () => navigate('products/edit', { id: product.id, returnTo: params.returnTo || 'dashboard' }));
     topbar.appendChild(editBtn);
   }
 
