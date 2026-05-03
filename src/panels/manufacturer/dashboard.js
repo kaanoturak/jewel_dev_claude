@@ -5,6 +5,9 @@ import { statusBadge, formatRelativeTime, truncate, esc } from '../../shared/uti
 // Statuses that allow the manufacturer to edit the product
 const EDITABLE_STATUSES = new Set(['DRAFT', 'REVISION_REQUESTED_BY_ADMIN']);
 
+// Statuses that are beyond the manufacturer's scope — hide these from their view
+const HIDDEN_STATUSES = new Set(['PENDING_SALES', 'READY_FOR_ECOMMERCE']);
+
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function fetchMyProducts() {
@@ -250,7 +253,7 @@ export async function render(container, navigate) {
 
   let products;
   try {
-    products = await fetchMyProducts();
+    products = (await fetchMyProducts()).filter(p => !HIDDEN_STATUSES.has(p.status));
   } catch (err) {
     console.error('[Dashboard] Failed to load products:', err);
     container.innerHTML = `
