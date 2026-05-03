@@ -40,6 +40,49 @@ const DEV_USERS = {
   },
 };
 
+// ─── Cloud login form (CLOUD_ENABLED=true) ────────────────────────────────────
+
+function showLoginForm(appEl) {
+  appEl.innerHTML = `
+    <div class="login-screen">
+      <div class="login-card">
+        <span class="login-logo">TuguJewelry</span>
+        <span class="login-sub">Insider PIM</span>
+        <div id="login-error" class="alert alert--error" style="display:none;margin-bottom:12px"></div>
+        <div style="display:flex;flex-direction:column;gap:12px;width:100%">
+          <input id="login-email"    type="email"    class="form-input" placeholder="Email address" autocomplete="username" />
+          <input id="login-password" type="password" class="form-input" placeholder="Password"      autocomplete="current-password" />
+          <button id="login-submit" class="btn btn--primary" style="width:100%">Sign in</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const emailEl    = appEl.querySelector('#login-email');
+  const passwordEl = appEl.querySelector('#login-password');
+  const submitBtn  = appEl.querySelector('#login-submit');
+  const errorEl    = appEl.querySelector('#login-error');
+
+  async function attemptLogin() {
+    const email    = emailEl.value.trim();
+    const password = passwordEl.value;
+    if (!email || !password) { errorEl.textContent = 'Email and password are required.'; errorEl.style.display = 'block'; return; }
+    submitBtn.disabled = true; submitBtn.textContent = 'Signing in…';
+    errorEl.style.display = 'none';
+    try {
+      const user = await Auth.login(email, password);
+      await mountPanel(user.role, appEl);
+    } catch (err) {
+      errorEl.textContent = err.message || 'Sign-in failed. Check your credentials.';
+      errorEl.style.display = 'block';
+      submitBtn.disabled = false; submitBtn.textContent = 'Sign in';
+    }
+  }
+
+  submitBtn.addEventListener('click', attemptLogin);
+  passwordEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptLogin(); });
+}
+
 // ─── Role selector (dev stub login) ──────────────────────────────────────────
 
 function showRoleSelector(appEl) {
@@ -151,7 +194,11 @@ async function boot() {
   const user = Auth.getCurrentUser();
 
   if (!user) {
-    showRoleSelector(appEl);
+    if (CLOUD_ENABLED) {
+      showLoginForm(appEl);
+    } else {
+      showRoleSelector(appEl);
+    }
     return;
   }
 

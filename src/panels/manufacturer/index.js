@@ -1,4 +1,4 @@
-import { getCurrentUser, setCurrentUser, canDo } from '../../modules/auth/index.js';
+import { getCurrentUser, logout, canDo } from '../../modules/auth/index.js';
 import { render as renderDashboard }     from './dashboard.js';
 import { render as renderProductForm }   from './product-form.js';
 import { render as renderProductView }   from './product-view.js';
@@ -199,7 +199,7 @@ export function mount(container) {
 
   // Sign out
   container.querySelector('#btn-signout').addEventListener('click', async () => {
-    await setCurrentUser(null);
+    await logout();
     window.location.reload();
   });
 

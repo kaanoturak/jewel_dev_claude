@@ -16,6 +16,7 @@ const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 
 let _app       = null;
 let _db        = null; // Firestore instance
+let _auth      = null; // Firebase Auth instance
 let _storage   = null; // Firebase Storage instance
 let _initPromise = null;
 
@@ -41,25 +42,41 @@ export async function initFirebase() {
   if (_initPromise) return _initPromise;
 
   _initPromise = (async () => {
-    const [{ initializeApp }, { getFirestore }, { getStorage }] = await Promise.all([
+    const [{ initializeApp }, { getFirestore }, { getAuth }, { getStorage }] = await Promise.all([
       import(`${CDN}/firebase-app.js`),
       import(`${CDN}/firebase-firestore.js`),
+      import(`${CDN}/firebase-auth.js`),
       import(`${CDN}/firebase-storage.js`),
     ]);
 
     _app     = initializeApp(FIREBASE_CONFIG);
     _db      = getFirestore(_app);
+    _auth    = getAuth(_app);
     _storage = getStorage(_app);
 
-    console.info('[TuguPIM] Firebase Firestore connected');
+    console.info('[TuguPIM] Firebase connected (Firestore + Auth + Storage)');
   })();
 
   return _initPromise;
 }
 
-export const getFirestoreDB  = () => _db;
-export const getStorageInst  = () => _storage;
-export const getFirebaseApp  = () => _app;
+export const getFirestoreDB      = () => _db;
+export const getAuthInstance     = () => _auth;
+export const getStorageInst      = () => _storage;
+export const getFirebaseApp      = () => _app;
+export const getFirebaseCurrentUser = () => _auth?.currentUser ?? null;
+
+// ─── Auth helpers (used by src/modules/auth/index.js) ─────────────────────────
+
+export async function firebaseSignIn(email, password) {
+  const { signInWithEmailAndPassword } = await import(`${CDN}/firebase-auth.js`);
+  return signInWithEmailAndPassword(_auth, email, password);
+}
+
+export async function firebaseSignOut() {
+  const { signOut } = await import(`${CDN}/firebase-auth.js`);
+  return signOut(_auth);
+}
 
 // ─── Firestore helpers ────────────────────────────────────────────────────────
 

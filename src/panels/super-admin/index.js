@@ -1,4 +1,4 @@
-import { getCurrentUser, setCurrentUser } from '../../modules/auth/index.js';
+import { getCurrentUser, logout } from '../../modules/auth/index.js';
 import { render as renderDashboard }     from './dashboard.js';
 import { render as renderUserMgmt }      from './user-management.js';
 import { render as renderOverride }      from './override.js';
@@ -127,7 +127,7 @@ export function mount(container) {
   });
 
   container.querySelector('#sa-signout').addEventListener('click', async () => {
-    await setCurrentUser(null);
+    await logout();
     window.location.reload();
   });
 
