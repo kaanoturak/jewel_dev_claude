@@ -9,11 +9,12 @@
  * 27.90. The formula is authoritative; the example number appears to be a typo.
  */
 
-// ─── Cost layer calculations (Section 6) ─────────────────────────────────────
+import CloudDB from './db.js';
+
+// ─── Marketplace Financial Formulas ──────────────────────────────────────────
 
 /**
- * Manufacturer cost layer.
- * costBase = costMaterial + costLabor + costPackaging
+ * Manufacturer cost layer (unchanged).
  */
 function calcCostBase(product) {
   const material  = Number(product.costMaterial)  || 0;
@@ -23,11 +24,33 @@ function calcCostBase(product) {
 }
 
 /**
- * Admin cost layer.
+ * Marketplace Commission-Based Payout.
+ * 
+ * grossMargin = sellingPrice - costBase
+ * commission = grossMargin * (marketplaceCommissionPct / 100)
+ * vendorPayout = sellingPrice - commission
+ */
+async function calcMarketplacePayout(product, effectivePrice) {
+  const costBase = calcCostBase(product);
+  if (!effectivePrice || effectivePrice <= 0) return null;
+
+  // Retrieve commission rate from settings (global default)
+  const settings = await CloudDB.get('settings', 'marketplace_config');
+  const commissionPct = settings?.marketplaceCommissionPct ?? 15; // Default 15%
+
+  const grossMargin  = round2(effectivePrice - costBase);
+  // commission is only applied to positive margin
+  const commission   = round2(Math.max(0, grossMargin) * (commissionPct / 100));
+  const vendorPayout = round2(effectivePrice - commission);
+
+  return { grossMargin, commission, vendorPayout, commissionPct };
+}
+
+/**
  * Step 1: apply tax to costBase, then add flat costs.
  * Step 2: apply target margin to the step-1 subtotal.
- *
- * Returns null when adminMarginPct is not yet set (admin layer incomplete).
+ * 
+ * @deprecated Legacy internal transfer price logic. Maintained for read-only compatibility.
  */
 function calcTransferPrice(product, costBase) {
   if (product.adminMarginPct === null || product.adminMarginPct === undefined) {
@@ -83,18 +106,31 @@ function round2(n) {
 /**
  * Run the full cost calculation pipeline for a product.
  *
- * @param {object} product  - Product record (partial is fine; missing fields default to 0/null)
+ * @param {object} product  - Product record
  * @param {object} campaign - Active campaign record, or null
- * @returns {{ costBase: number, transferPrice: number|null, effectivePrice: number|null }}
+ * @returns {Promise<{ costBase: number, transferPrice: number|null, effectivePrice: number|null, grossMargin: number|null, commission: number|null, vendorPayout: number|null }>}
  */
-export function calculate(product, campaign = null, variant = null) {
-  if (!product) return { costBase: 0, transferPrice: null, effectivePrice: null };
+export async function calculate(product, campaign = null, variant = null) {
+  if (!product) return { 
+    costBase: 0, transferPrice: null, effectivePrice: null, 
+    grossMargin: null, commission: null, vendorPayout: null 
+  };
 
-  const costBase      = calcCostBase(product);
-  const transferPrice = calcTransferPrice(product, costBase);
+  const costBase       = calcCostBase(product);
+  const transferPrice  = calcTransferPrice(product, costBase);
   const effectivePrice = calcEffectivePrice(product, campaign, variant);
+  
+  const marketplace = await calcMarketplacePayout(product, effectivePrice);
 
-  return { costBase, transferPrice, effectivePrice };
+  return { 
+    costBase, 
+    transferPrice, 
+    effectivePrice,
+    grossMargin:  marketplace?.grossMargin ?? null,
+    commission:   marketplace?.commission ?? null,
+    vendorPayout: marketplace?.vendorPayout ?? null,
+    commissionPct: marketplace?.commissionPct ?? null
+  };
 }
 
 /**
