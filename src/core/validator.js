@@ -75,6 +75,16 @@ export const VARIANT_SCHEMA = {
   compareAtPrice: [
     { rule: 'min', value: 0, message: 'Variant compare-at price cannot be negative' },
   ],
+  // Optional per-variant cost overrides — validated only when a value is present
+  costMaterial: [
+    { rule: 'min', value: 0, message: 'Variant material cost cannot be negative' },
+  ],
+  costLabor: [
+    { rule: 'min', value: 0, message: 'Variant labor cost cannot be negative' },
+  ],
+  costPackaging: [
+    { rule: 'min', value: 0, message: 'Variant packaging cost cannot be negative' },
+  ],
 };
 
 export const MANUFACTURER_COST_SCHEMA = {

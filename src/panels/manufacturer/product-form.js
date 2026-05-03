@@ -733,6 +733,12 @@ function _tabVariants() {
   checkbox.addEventListener('change', () => {
     _collectVariantRows(d);
     _sharedCostMode = checkbox.checked;
+    if (_sharedCostMode) {
+      const m = Number(_draft.costMaterial)  || 0;
+      const l = Number(_draft.costLabor)     || 0;
+      const p = Number(_draft.costPackaging) || 0;
+      for (const v of _variants) { v.costMaterial = m; v.costLabor = l; v.costPackaging = p; }
+    }
     d.querySelector('#vt-wrap')?.replaceWith(_buildVariantTable());
     _renderSharedCostInputs(costInputsEl);
   });
