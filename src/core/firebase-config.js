@@ -13,7 +13,7 @@
  * user can only read/write documents matching their userId / role.
  */
 
-export const CLOUD_ENABLED = false; // ← flip to true after filling credentials
+export const CLOUD_ENABLED = true; // ← Enabled after migration
 
 export const FIREBASE_CONFIG = {
   apiKey:            'REPLACE_WITH_YOUR_API_KEY',

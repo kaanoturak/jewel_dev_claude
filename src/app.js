@@ -179,13 +179,9 @@ async function _runVariantMigrationIfNeeded() {
 async function boot() {
   const appEl = document.getElementById('app');
 
-  // If cloud mode is enabled, initialize Firebase and swap the DB adapter
-  // before Auth.init() so every subsequent DB call uses Firestore.
-  if (CLOUD_ENABLED) {
-    const { initFirebase, default: CloudDB } = await import('./core/api.js');
-    await initFirebase();
-    _swapToCloud(CloudDB);
-  }
+  // Initialize Firebase and the cloud adapter before Auth.init()
+  const { initFirebase } = await import('./core/api.js');
+  await initFirebase();
 
   await Auth.init();
   registerAuth(Auth);
