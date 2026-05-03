@@ -13,8 +13,8 @@ const VIEWS = {
   'products/new':   renderProductForm,
   'products/edit':  renderProductForm,
   'products/view':  renderProductView,
-  'products/queue': renderProductQueue,
-  'products/all':   renderProductQueue,
+  'products/queue': (c, nav, p) => renderProductQueue(c, nav, { ...p, mode: 'queue' }),
+  'products/all':   (c, nav, p) => renderProductQueue(c, nav, { ...p, mode: 'all'   }),
   stock:            renderStockView,
   account:          renderAccountStub,
 };
