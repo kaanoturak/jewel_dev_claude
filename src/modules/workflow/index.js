@@ -52,7 +52,7 @@ function _requireNotes(toStatus, notes) {
   }
 }
 
-function _validateProductReadiness(product, toStatus) {
+function _validateProductReadiness(product, toStatus, variants = []) {
   if (toStatus === 'PENDING_ADMIN') {
     const r1 = validate(PRODUCT_SCHEMA, product);
     const r2 = validate(MANUFACTURER_COST_SCHEMA, product);
@@ -76,9 +76,18 @@ function _validateProductReadiness(product, toStatus) {
   }
 
   if (toStatus === 'READY_FOR_ECOMMERCE') {
-    const hasVariantPricing = product.variantPricingEnabled === true;
-    if (!hasVariantPricing && (!product.sellingPrice || Number(product.sellingPrice) <= 0)) {
-      throw new Error('Selling price must be set before marking product as ready for e-commerce');
+    const globalPrice = Number(product.sellingPrice) > 0;
+    if (variants.length > 0) {
+      const anyVariantPrice = variants.some(v => Number(v.sellingPrice) > 0);
+      if (!globalPrice && !anyVariantPrice) {
+        throw new Error(
+          'At least one variant must have a selling price, or a default product selling price must be set'
+        );
+      }
+    } else {
+      if (!globalPrice) {
+        throw new Error('Selling price must be set before marking product as ready for e-commerce');
+      }
     }
     return;
   }
@@ -203,7 +212,10 @@ export async function transition(productId, toStatus, userId, notes = null) {
   _requireNotes(toStatus, notes);
 
   // ── 6. Business-rule readiness ─────────────────────────────────────────────
-  _validateProductReadiness(product, toStatus);
+  const variants = toStatus === 'READY_FOR_ECOMMERCE'
+    ? (await DB.queryByIndex('variants', 'productId', productId) || [])
+    : [];
+  _validateProductReadiness(product, toStatus, variants);
 
   // ── All checks passed — begin writes ──────────────────────────────────────
   const now     = Date.now();
