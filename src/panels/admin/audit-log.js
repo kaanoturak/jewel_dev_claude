@@ -13,14 +13,15 @@ function formatTs(ts) {
 }
 
 const ACTION_LABELS = {
-  STATUS_TRANSITION:    'Status change',
-  FIELD_EDIT:           'Fields edited',
-  COST_EDIT:            'Costs updated',
+  STATUS_CHANGE:        'Status change',
+  FIELD_UPDATE:         'Fields edited',
   PRODUCT_CREATED:      'Product created',
   PRODUCT_DELETED:      'Product deleted',
   VARIANT_ADDED:        'Variant added',
   VARIANT_EDITED:       'Variant edited',
   VARIANT_DELETED:      'Variant deleted',
+  PERMISSION_OVERRIDE:  'Permission override',
+  PERMISSION_VIOLATION: 'Permission blocked',
 };
 
 function actionLabel(action) {
@@ -28,9 +29,11 @@ function actionLabel(action) {
 }
 
 function actionBadgeClass(action) {
-  if (action === 'STATUS_TRANSITION') return 'badge--blue';
-  if (action === 'PRODUCT_CREATED')   return 'badge--green';
-  if (action === 'PRODUCT_DELETED')   return 'badge--red';
+  if (action === 'STATUS_CHANGE')        return 'badge--blue';
+  if (action === 'PRODUCT_CREATED')      return 'badge--green';
+  if (action === 'PRODUCT_DELETED')      return 'badge--red';
+  if (action === 'PERMISSION_VIOLATION') return 'badge--red';
+  if (action === 'PERMISSION_OVERRIDE')  return 'badge--blue';
   return 'badge--gray';
 }
 
