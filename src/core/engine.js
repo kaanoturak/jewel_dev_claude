@@ -76,8 +76,14 @@ function calcTransferPrice(product, costBase) {
  *
  * Returns null when sellingPrice is not yet set.
  */
-function calcEffectivePrice(product, campaign, variant = null) {
-  const base = Number(variant?.sellingPrice ?? product.sellingPrice);
+function calcEffectivePrice(product, campaign, variant = null, channel = null) {
+  let base = Number(variant?.sellingPrice ?? product.sellingPrice);
+  
+  // Apply channel-specific override if present
+  if (channel && variant?.channelConfig?.[channel]?.sellingPrice != null) {
+    base = Number(variant.channelConfig[channel].sellingPrice);
+  }
+
   if (!base || base <= 0) return null;
   if (!campaign || !campaign.isActive) return base;
 
@@ -108,9 +114,11 @@ function round2(n) {
  *
  * @param {object} product  - Product record
  * @param {object} campaign - Active campaign record, or null
+ * @param {object} variant  - Optional variant record
+ * @param {string} channel  - Optional sales channel
  * @returns {Promise<{ costBase: number, transferPrice: number|null, effectivePrice: number|null, grossMargin: number|null, commission: number|null, vendorPayout: number|null }>}
  */
-export async function calculate(product, campaign = null, variant = null) {
+export async function calculate(product, campaign = null, variant = null, channel = null) {
   if (!product) return { 
     costBase: 0, transferPrice: null, effectivePrice: null, 
     grossMargin: null, commission: null, vendorPayout: null 
@@ -118,7 +126,7 @@ export async function calculate(product, campaign = null, variant = null) {
 
   const costBase       = calcCostBase(product);
   const transferPrice  = calcTransferPrice(product, costBase);
-  const effectivePrice = calcEffectivePrice(product, campaign, variant);
+  const effectivePrice = calcEffectivePrice(product, campaign, variant, channel);
   
   const marketplace = await calcMarketplacePayout(product, effectivePrice);
 
@@ -134,10 +142,10 @@ export async function calculate(product, campaign = null, variant = null) {
 }
 
 /**
- * Convenience: compute only the effective price (used by campaign module at render time).
+ * Convenience: compute only the effective price.
  */
-export function getEffectivePrice(product, campaign, variant = null) {
-  return calcEffectivePrice(product, campaign, variant);
+export function getEffectivePrice(product, campaign, variant = null, channel = null) {
+  return calcEffectivePrice(product, campaign, variant, channel);
 }
 
 /**

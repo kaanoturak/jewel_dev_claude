@@ -85,6 +85,11 @@ export const VARIANT_SCHEMA = {
   costPackaging: [
     { rule: 'min', value: 0, message: 'Variant packaging cost cannot be negative' },
   ],
+  // Omnichannel Configuration
+  channelConfig: [
+    // Basic structural validation can be added here if needed, but since it's an object
+    // we'll treat it as valid if present for now to avoid breaking UI.
+  ],
 };
 
 export const MANUFACTURER_COST_SCHEMA = {
