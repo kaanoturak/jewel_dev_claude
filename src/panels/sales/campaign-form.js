@@ -273,6 +273,17 @@ export async function render(container, navigate, params = {}) {
   card.appendChild(footer);
   container.appendChild(card);
 
+  // Replace comma with dot in all number inputs (Turkish locale numpad support)
+  card.addEventListener('keydown', e => {
+    if (e.key === ',' && e.target.matches('input[type="number"]')) {
+      e.preventDefault();
+      const inp = e.target, pos = inp.selectionStart;
+      inp.value = inp.value.slice(0, pos) + '.' + inp.value.slice(inp.selectionEnd);
+      inp.setSelectionRange(pos + 1, pos + 1);
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+
   // ── Save handler ──────────────────────────────────────────────────────────
   saveBtn.addEventListener('click', async () => {
     const name         = document.getElementById('campaign-name').value.trim();
