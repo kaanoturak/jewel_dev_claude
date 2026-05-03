@@ -1049,10 +1049,17 @@ export async function render(container, navigate, params = {}) {
       const { draft, variants } = await _loadProduct(params.id);
       _draft    = draft;
       _variants = variants;
+      // Detect per-variant cost mode: shared if all variants have the same cost as the product record
+      _sharedCostMode = variants.length === 0 || variants.every(v =>
+        Number(v.costMaterial)  === Number(draft.costMaterial)  &&
+        Number(v.costLabor)     === Number(draft.costLabor)     &&
+        Number(v.costPackaging) === Number(draft.costPackaging)
+      );
     } else {
-      _productId = null;
-      _draft     = _initDraft();
-      _variants  = [];
+      _productId      = null;
+      _draft          = _initDraft();
+      _variants       = [];
+      _sharedCostMode = true;
     }
   } catch (err) {
     container.innerHTML = `<div class="alert alert--error" style="margin:28px">${esc(err.message)}</div>`;
