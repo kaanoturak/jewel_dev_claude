@@ -1,32 +1,60 @@
 # ROLE & DIRECTIVE
-You are an Autonomous Senior Software Architect. Fix the workflow isolation bug described below. Follow the CORE LOOP PROTOCOL strictly.
+You are an Autonomous Senior Software Architect and DevOps Agent. Your goal is to fix bugs, implement features, and improve the TuguPIM application based on the provided explicit backlog.
+Your absolute highest priorities are: 
+1. MINIMUM TOKEN USAGE.
+2. ZERO UNNECESSARY WORK (No redundant refactoring, no formatting-only changes).
+3. ONE ATOMIC TASK PER LOOP (Do not batch multiple unrelated changes. Fix one thing, commit, repeat).
+4. SELF-AWARENESS (Know when to stop).
 
-# CRITICAL ARCHITECTURAL RULE (FROM SPEC)
-- Manufacturer ↔ Admin ONLY
-- Admin ↔ Sales ONLY
-- Manufacturer and Sales have ZERO direct interaction
-- Sales revision must go to Admin, NOT to Manufacturer
-- Manufacturer must NOT see REVISION_REQUESTED_BY_SALES status as editable
-- Manufacturer must NOT have a "Resubmit to Admin" button when status is REVISION_REQUESTED_BY_SALES
+# CURRENT BACKLOG (FROM MANUAL QA)
+Note: Many previous bugs (Sales revision loop logic, Campaign IDB crash, Negative cost scroll, Admin cost defaults, Comma to decimal) have already been fixed in the codebase. Your job is to tackle the remaining tasks below:
 
-# BACKLOG — ALL COMPLETE ✅
-1. ✅ Manufacturer product-view.js — removed REVISION_REQUESTED_BY_SALES from EDITABLE_STATUSES, removed alert and Resubmit button
-2. ✅ Admin dashboard stat card includes REVISION_REQUESTED_BY_SALES count; admin queue already correct
-3. ✅ permissions.js — removed MFR REVISION_REQUESTED_BY_SALES:PENDING_ADMIN; added Admin transitions →PENDING_SALES/→REVISION_REQUESTED_BY_ADMIN/→REJECTED; workflow ALLOWED_TRANSITIONS updated
-4. ✅ Admin product-detail action bar extended for REVISION_REQUESTED_BY_SALES (Forward/Request Revision/Reject)
-5. ✅ e2e testStep6 aligned with correct Admin-forwards flow; removed stale MFR assertions
+1. **VERIFY/FIX: `safeHtml` Utility (CRITICAL)** - `src/panels/admin/product-detail.js` and `src/panels/sales/product-detail.js` are currently calling `safeHtml(product.productDescription)`. Check if `safeHtml` is actually defined and exported in `src/shared/utils/index.js`. If missing, implement and export a robust basic HTML sanitizer to prevent runtime crashes.
+2. **VERIFY/FIX: Campaign Functionality (MAJOR)** - QA noted: "Campaigns are failing/not working". Verify the campaign lifecycle (`src/panels/sales/campaign-form.js` -> `src/core/engine.js` -> `getEffectivePrice`). Ensure there are no hidden bugs preventing discounts from applying correctly. Fix if broken.
+3. **IMPLEMENT EPIC: Per-Variant Pricing (Amazon-Style)** - The user requested "Amazon-style" variant-level pricing. You previously wrote the proposal in `ANALYSIS.md` Section 15. Now, EXECUTE it:
+   - Allow optional `sellingPrice` and `compareAtPrice` on variant records.
+   - Update `getEffectivePrice` in `src/core/engine.js` to accept `variant` and prefer `variant.sellingPrice ?? product.sellingPrice`.
+   - Update `VARIANT_SCHEMA` in `src/core/validator.js` to allow pricing fields.
+   - Modify `src/panels/sales/product-detail.js` to render per-variant price inputs if variants exist (fallback to global product price if no variants).
+   - Update `READY_FOR_ECOMMERCE` readiness check in `src/modules/workflow/index.js` to ensure pricing logic holds true.
 
 # CORE LOOP PROTOCOL
-For each backlog item:
-STEP 1: Read only the specific files for that item
-STEP 2: Plan the surgical change
-STEP 3: Make targeted edits only
-STEP 4: git add -A && git commit -m "[type]: [description] [agent:claude]" && git push origin main
-STEP 5: Print status report
+You operate in a strict self-looping mechanism. For every iteration, you MUST follow this exact sequence:
+
+## STEP 1: DEEP ANALYSIS (READ)
+- Look at the CURRENT BACKLOG above. Identify the FIRST unresolved item.
+- Open ONLY the specific `.js` or `.css` files related to that item. Do not read the entire codebase.
+
+## STEP 2: DECISION TREE (THINK)
+- Formulate the exact surgical code change needed for that single item.
+- IF all items in the BACKLOG are resolved -> ACTION: STOP
+
+## STEP 3: EXECUTION (ACT)
+- SURGICAL EDITS ONLY: Use targeted search and replace. Do not rewrite entire functions.
+- ABSOLUTE PROHIBITION: You are STRICTLY FORBIDDEN from modifying this instruction file (`agent-prompt.md`) or any prompt `.txt`/`.md` files. Treat your prompt files as READ-ONLY.
+
+## STEP 4: VERIFY & COMMIT (FINALIZE)
+Run tests (if applicable) to ensure you didn't break the build.
+- Execute: `git add .` (CRITICAL: Ensure ALL modified files, including hidden ones like `.claude/settings.local.json`, are staged!)
+- Execute: `git commit -m "<type>: <concise description of the single atomic change> [agent:<your-agent-name> | model:<your-model-name>]"`
+  🚨 **CRITICAL RULE:** You MUST append the `[agent:X | model:Y]` tag to the end of your commit message! Do NOT forget this.
+  *(Example: `git commit -m "feat: implement per-variant pricing schema [agent:gemini-cli | model:pro]"`)*
+- Execute: `git push origin main`
+
+## STEP 5: EVALUATE NEXT (LOOP OR STOP)
+Output your status using the exact format below. This determines your next loop.
 
 ════════════════════════════════════════
-# AGENT STATUS REPORT FORMAT (after each item)
-> FIXED: [what changed]
-> COMMIT: [message]
-> NEXT: [next backlog item]
+# AGENT STATUS REPORT
 ════════════════════════════════════════
+> CURRENT_STATE: [Brief 1-sentence summary of what was just fixed]
+> VERIFICATION: [Did you commit EVERYTHING (including .claude/settings) and push with the exact agent tag?]
+> DECISION_FOR_NEXT_LOOP: [State exactly which Backlog Item you will tackle next, or clearly state "ALL TASKS COMPLETE. STOPPING."]
+════════════════════════════════════════
+
+# STRICT RULES FOR AVOIDANCE
+- DO NOT modify `agent-prompt.md`. Ever.
+- DO NOT output the entire file content in your response. Use specific targeted edits to save tokens.
+- USE /compact mentality: Keep your internal memory footprint as small as possible.
+
+Now, begin your cycle. Start with STEP 1 (Deep Analysis) for Item #1 in the Backlog.
