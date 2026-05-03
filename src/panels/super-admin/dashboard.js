@@ -3,7 +3,8 @@ import { statusBadge, formatRelativeTime, esc }  from '../../shared/utils/index.
 import { toShopifyCSV, toJSONFeed,
          downloadCSV, downloadJSON }             from '../../modules/export/index.js';
 import { ROLE_PERMISSIONS, ACTIONS }             from '../../modules/auth/permissions.js';
-import { getOverrides }                          from '../../modules/auth/index.js';
+import { getOverrides, getCurrentUser }          from '../../modules/auth/index.js';
+import { logOverride }                           from '../../core/logger.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,67 @@ export async function render(container, navigate) {
     statsGrid.appendChild(card);
   }
   container.appendChild(statsGrid);
+
+  // ── Marketplace Settings ──────────────────────────────────────────────────
+  const settingsSection = document.createElement('div');
+  settingsSection.className = 'section';
+
+  const sHdr = document.createElement('div');
+  sHdr.className = 'section-header';
+  sHdr.innerHTML = `<span class="section-title">Marketplace Settings</span>`;
+  settingsSection.appendChild(sHdr);
+
+  const settingsCard = document.createElement('div');
+  settingsCard.className = 'card';
+  settingsCard.style.cssText = 'padding:20px 24px';
+
+  const mConfig = await DB.get('settings', 'marketplace_config');
+  const currentComm = mConfig?.marketplaceCommissionPct ?? 15;
+
+  settingsCard.innerHTML = `
+    <div style="max-width:480px">
+      <label class="form-label" for="comm-pct">Global Marketplace Commission (%)</label>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+        <input id="comm-pct" type="number" class="form-input" style="width:100px" 
+               value="${currentComm}" min="0" max="100" step="0.5">
+        <button id="save-comm" class="btn btn--secondary btn--sm">Update Rate</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:8px">
+        Commission is applied to the gross margin. For example, at 15%, the marketplace keeps $15 for every $100 of margin earned.
+      </p>
+    </div>
+  `;
+
+  settingsSection.appendChild(settingsCard);
+  container.appendChild(settingsSection);
+
+  const saveCommBtn = settingsCard.querySelector('#save-comm');
+  const commInput = settingsCard.querySelector('#comm-pct');
+  
+  saveCommBtn.addEventListener('click', async () => {
+    const val = parseFloat(commInput.value);
+    if (isNaN(val) || val < 0 || val > 100) { alert('Invalid percentage.'); return; }
+    
+    saveCommBtn.disabled = true;
+    saveCommBtn.textContent = 'Updating…';
+    
+    try {
+      const user = getCurrentUser();
+      await DB.put('settings', {
+        settingId: 'marketplace_config',
+        marketplaceCommissionPct: val,
+        updatedAt: Date.now(),
+        updatedBy: user?.userId
+      });
+      logOverride(user?.userId, 'GLOBAL', 'COMMISSION_RATE', val);
+      saveCommBtn.textContent = 'Updated ✓';
+      setTimeout(() => { saveCommBtn.textContent = 'Update Rate'; saveCommBtn.disabled = false; }, 2000);
+    } catch (err) {
+      alert(`Update failed: ${err.message}`);
+      saveCommBtn.disabled = false;
+      saveCommBtn.textContent = 'Update Rate';
+    }
+  });
 
   // ── Status breakdown ──────────────────────────────────────────────────────
   const breakdownSection = document.createElement('div');
