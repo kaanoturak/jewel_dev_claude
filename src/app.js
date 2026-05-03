@@ -1,7 +1,8 @@
 import * as Auth   from './modules/auth/index.js';
 import { registerAuth } from './core/state.js';
-import DB from './core/db.js';
+import DB, { _swapToCloud } from './core/db.js';
 import { calculateVariantTransferPrice } from './core/engine.js';
+import { CLOUD_ENABLED } from './core/firebase-config.js';
 
 // Dev-only stub users — each represents a role with a realistic internal ID.
 const DEV_USERS = {
@@ -134,6 +135,14 @@ async function _runVariantMigrationIfNeeded() {
 
 async function boot() {
   const appEl = document.getElementById('app');
+
+  // If cloud mode is enabled, initialize Firebase and swap the DB adapter
+  // before Auth.init() so every subsequent DB call uses Firestore.
+  if (CLOUD_ENABLED) {
+    const { initFirebase, default: CloudDB } = await import('./core/api.js');
+    await initFirebase();
+    _swapToCloud(CloudDB);
+  }
 
   await Auth.init();
   registerAuth(Auth);

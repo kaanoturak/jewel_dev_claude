@@ -289,4 +289,18 @@ const DB = {
   },
 };
 
-export default DB;
+// ─── Cloud routing gate ──────────────────────────────────────────────────────
+// When CLOUD_ENABLED = true (firebase-config.js), all calls are transparently
+// forwarded to the Firestore adapter in api.js. No panel code changes needed.
+
+let _impl = DB; // default: IndexedDB
+
+export function _swapToCloud(cloudDB) {
+  _impl = cloudDB;
+}
+
+export default new Proxy({}, {
+  get(_, method) {
+    return (...args) => _impl[method](...args);
+  },
+});
