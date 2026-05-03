@@ -50,7 +50,7 @@ const SHOPIFY_HEADERS = [
  * @returns {string} CSV string (CRLF line endings)
  */
 export function toShopifyCSV(products, variants) {
-  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE');
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE' || p.status === 'PUBLISHED');
   const vByProd = variantsByProductId(variants);
 
   const rows = [csvRow(SHOPIFY_HEADERS)];
@@ -59,7 +59,7 @@ export function toShopifyCSV(products, variants) {
     const handle    = productHandle(product);
     const title     = product.seoTitle || product.name || '';
     const bodyHtml  = product.productDescription || '';
-    const vendor    = 'TuguJewelry';
+    const vendor    = product.vendorId || 'TuguJewelry';
     const type      = product.category || '';
     const tags      = Array.isArray(product.searchTags) ? product.searchTags.join(', ') : '';
     const price     = product.sellingPrice != null ? String(product.sellingPrice) : '';
@@ -102,14 +102,14 @@ export function toShopifyCSV(products, variants) {
  * @returns {object[]} Array of e-commerce product objects
  */
 export function toJSONFeed(products, variants) {
-  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE');
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE' || p.status === 'PUBLISHED');
   const vByProd = variantsByProductId(variants);
 
   return ready.map(product => ({
     externalId:   product.sku,
     title:        product.seoTitle || product.name,
     bodyHtml:     product.productDescription,
-    vendor:       'TuguJewelry',
+    vendor:       product.vendorId || 'TuguJewelry',
     productType:  product.category,
     tags:         product.searchTags || [],
     images:       (product.images || []).map(img => ({
@@ -150,6 +150,59 @@ export function downloadCSV(filename, csvString) {
 export function downloadJSON(filename, data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   _triggerDownload(filename, blob);
+}
+
+/**
+ * Convert products to JSON-LD (Schema.org) Product objects.
+ * 
+ * @param {object[]} products
+ * @param {object[]} variants
+ * @param {string} [channel] - Optional channel context for pricing
+ * @returns {object[]} Array of JSON-LD Product objects
+ */
+export function toJsonLD(products, variants, channel = null) {
+  const ready   = (products || []).filter(p => p.status === 'READY_FOR_ECOMMERCE' || p.status === 'PUBLISHED');
+  const vByProd = variantsByProductId(variants);
+
+  return ready.flatMap(product => {
+    const pvs = vByProd[product.id] || [];
+    
+    // If no variants, create one top-level product LD
+    if (pvs.length === 0) {
+      return [_buildSingleJsonLD(product, null, channel)];
+    }
+
+    // Map each variant to a Product LD (standard for marketplace feeds)
+    return pvs.map(v => _buildSingleJsonLD(product, v, channel));
+  });
+}
+
+function _buildSingleJsonLD(product, variant, channel) {
+  const price = getEffectivePrice(product, null, variant, channel);
+  
+  return {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": product.name,
+    "image": (product.images || []).map(img => img.url),
+    "description": product.productDescription,
+    "sku": variant?.sku ?? product.sku,
+    "brand": {
+      "@type": "Brand",
+      "name": product.vendorId || "TuguJewelry"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": channel ? `https://marketplace.tugu.dev/p/${product.sku}?channel=${channel}` : undefined,
+      "priceCurrency": "USD",
+      "price": price,
+      "availability": (variant?.stockCount ?? 0) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "seller": {
+        "@type": "Organization",
+        "name": product.vendorId || "TuguJewelry"
+      }
+    }
+  };
 }
 
 function _triggerDownload(filename, blob) {
