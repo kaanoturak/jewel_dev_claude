@@ -1,5 +1,7 @@
 import * as Auth   from './modules/auth/index.js';
 import { registerAuth } from './core/state.js';
+import DB from './core/db.js';
+import { calculateVariantTransferPrice } from './core/engine.js';
 
 // Dev-only stub users — each represents a role with a realistic internal ID.
 const DEV_USERS = {
@@ -102,6 +104,32 @@ async function mountPanel(role, container) {
   }
 }
 
+// ─── Boot-time variant cost migration ────────────────────────────────────────
+
+async function _runVariantMigrationIfNeeded() {
+  const flag = await DB.get('settings', 'variant_migration_complete');
+  if (flag?.value === true) return;
+
+  const products = await DB.getAll('products') || [];
+  for (const product of products) {
+    const variants = await DB.queryByIndex('variants', 'productId', product.id) || [];
+    for (const v of variants) {
+      const patch = {};
+      if (v.costMaterial  == null) patch.costMaterial  = Number(product.costMaterial)  || 0;
+      if (v.costLabor     == null) patch.costLabor     = Number(product.costLabor)     || 0;
+      if (v.costPackaging == null) patch.costPackaging = Number(product.costPackaging) || 0;
+      const hydrated = { ...v, ...patch };
+      const tp = calculateVariantTransferPrice(hydrated, product);
+      if (tp !== null) patch.transferPrice = tp;
+      if (Object.keys(patch).length > 0) {
+        await DB.patch('variants', v.variantId, patch).catch(() => {});
+      }
+    }
+  }
+
+  await DB.put('settings', { settingId: 'variant_migration_complete', value: true, migratedAt: Date.now() });
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 async function boot() {
@@ -109,6 +137,7 @@ async function boot() {
 
   await Auth.init();
   registerAuth(Auth);
+  await _runVariantMigrationIfNeeded();
 
   const user = Auth.getCurrentUser();
 
