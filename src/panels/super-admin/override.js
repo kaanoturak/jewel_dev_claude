@@ -210,7 +210,7 @@ export async function render(container) {
 
   const permDesc = document.createElement('p');
   permDesc.style.cssText = 'font-size:13px;color:var(--text-muted);margin-bottom:20px';
-  permDesc.textContent = 'Temporarily restrict or expand role capabilities. Changes are saved to IndexedDB and logged.';
+  permDesc.textContent = 'Temporarily restrict or expand role capabilities. Changes are saved to Firestore and logged.';
   container.appendChild(permDesc);
 
   const roles = ['MANUFACTURER', 'ADMIN', 'SALES'];

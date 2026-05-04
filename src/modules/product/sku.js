@@ -43,8 +43,9 @@ function _padSequence(n) {
  *   generateProductSKU('Ring', 'Brass')  → 'TGJ-RNG-BRS-00001'
  *   generateProductSKU('Necklace', 'Gold') → 'TGJ-NCK-GLD-00002'
  *
- * The sequence is read and incremented atomically inside a single IndexedDB
- * readwrite transaction, so concurrent calls can never receive the same number.
+ * The sequence is read and incremented atomically through DB.atomicIncrement.
+ * In cloud mode this uses a Firestore transaction scoped by vendor for non-admins,
+ * so concurrent calls can never receive the same number within the same scope.
  *
  * The prefix is read from the 'settings' store (key: 'skuPrefix') and falls back
  * to 'TGJ'. Once a SKU is generated it is never regenerated — callers must store

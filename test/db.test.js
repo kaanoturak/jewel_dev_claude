@@ -5,8 +5,8 @@
  *   import('/test/db.test.js')
  *
  * Each check prints ✅ PASS or ❌ FAIL with a detail note.
- * The sequence counter in IndexedDB keeps incrementing across runs — that is
- * correct behaviour. The tests never check absolute sequence numbers, only
+ * The sequence counter in the DB adapter keeps incrementing across runs — that
+ * is correct behaviour. The tests never check absolute sequence numbers, only
  * the relative increment between two consecutive calls.
  */
 

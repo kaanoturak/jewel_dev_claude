@@ -11,14 +11,14 @@ Gemini Code Assist Report
 
   1. Context
 
-  The Insider PIM system is a fully implemented, production-ready Product Information Management application. It operates as a modular web system utilizing
-  IndexedDB for client-side persistence and a strict role-based architecture.
+  The Insider PIM system is a fully implemented, production-ready Product Information Management application. It operates as a modular web system using
+  Firebase Auth, Firestore, and Firebase Storage through the cloud adapter in src/core/api.js, with a strict role-based architecture.
 
   The system is defined by:
    * Role-Based Access Control (RBAC): Distinct permissions for data mutation, panel visibility, and workflow transitions.
    * Strict State Machine: All product lifecycles are governed by a central workflow engine that enforces legal transitions.
    * Layered Data Ownership: Product data is built incrementally as it moves through the organizational hierarchy.
-   * IndexedDB Persistence: Atomic transactions and indexed lookups for products, variants, audit logs, and snapshots.
+   * Cloud Persistence: Firestore collections store products, variants, audit logs, snapshots, settings, users, campaigns, and media metadata; Firebase Storage stores uploaded media.
 
   2. Critical System Rule (ENFORCED)
 
@@ -174,7 +174,7 @@ Gemini Code Assist Report
 
   8. Permission Matrix & Dynamic Governance
 
-  The system employs a Hybrid Permission Model: Static Role Definitions (defined in code) augmented by Dynamic Overrides (persisted in IndexedDB).
+  The system employs a Hybrid Permission Model: Static Role Definitions (defined in code) augmented by Dynamic Overrides persisted in the Firestore `settings` collection.
 
   8.1 Static Permission Matrix (Base Rules)
   ┌─────────────────────┬──────────────┬───────┬───────┬─────────────┐
@@ -233,11 +233,11 @@ Gemini Code Assist Report
 
   11. System Limitations
 
-   * Local-First Persistence: All data is stored in the browser's IndexedDB. Clearing browser data or switching devices results in data loss.
-   * No Real Authentication: The login screen simulates authentication; identity is managed via local settings.
-   * No Background Sync: Without a backend, there is no multi-user synchronization or real-time notification system.
-   * Media Storage: Image blobs are stored raw in IndexedDB. Extreme quantities of high-resolution images may impact browser performance.
-   * Scalability: All product queries currently load full result sets; no server-side pagination or filtering is implemented.
+   * Firebase Configuration: The checked-in config still contains placeholder values; a real Firebase project is required for production use.
+   * Client-Side Guardrails: Tenant filtering exists in the client adapter, but production must also enforce equivalent Firestore Security Rules.
+   * No Background Job Layer: Stock synchronization, export scheduling, and notifications are not yet handled by a backend worker.
+   * Media Storage: Uploaded files are sent to Firebase Storage, but image compression/optimization is not yet automated.
+   * Scalability: Product queries still load full result sets in many panels; pagination and query-backed filtering are future hardening work.
 
   ---
 
@@ -245,7 +245,7 @@ Gemini Code Assist Report
 
    * Export Adapters: Implementation of formatters for Shopify, WooCommerce, and Google Merchant Center.
    * Stock Synchronization: Two-way sync between Insider PIM and external e-commerce platforms.
-   * Cloud Persistence: Transition from IndexedDB to a central API/Database for shared access.
+   * Cloud Hardening: Add Firestore Security Rules, pagination, and operational monitoring around the Firebase-backed data layer.
    * AI-Assisted Enrichment: Integration with LLMs (e.g., Gemini) for automated SEO and marketing copy generation.
    * Image Optimization: Automated compression and WebP conversion on upload.
 

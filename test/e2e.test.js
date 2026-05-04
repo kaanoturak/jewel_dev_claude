@@ -11,7 +11,7 @@
  *   Audit log entries verified at each stage
  *
  * All test records use a unique run-ID prefix so multiple runs don't
- * collide in IndexedDB. Cleanup removes all test records at the end.
+ * collide in the backing DB adapter. Cleanup removes all test records at the end.
  */
 
 import DB                              from '../src/core/db.js';
@@ -877,7 +877,7 @@ async function testStep_ManufacturerDashboardFilter() {
 
 async function run() {
   console.group('%c TuguPIM — E2E Workflow Test', 'font-weight:bold;font-size:14px');
-  console.log('Tests run in the browser against live IndexedDB.\n');
+  console.log('Tests run in the browser against the active DB adapter.\n');
 
   try {
     // Init auth module (loads persisted user from settings if any)
@@ -889,7 +889,7 @@ async function run() {
     await testStep1_ManufacturerCreatesAndSubmits(productId, sku);
     await testStep2_AdminCostsAndApprove(productId);
     await testStep3_SalesPriceAndApprove(productId);
-    // Give IndexedDB a tick to flush audit log writes (fire-and-forget)
+    // Give the DB adapter a tick to flush audit log writes (fire-and-forget)
     await new Promise(r => setTimeout(r, 100));
     await testStep4_AuditLog(productId);
     await testStep5_RevisionFlow();
