@@ -15,6 +15,12 @@ async function _fetchProducts(mode) {
     products = await DB.getAll('products');
   }
 
+  const [allUsers] = await Promise.all([DB.getAll('users')]);
+  const vendorMap = (allUsers || []).reduce((acc, u) => {
+    if (u.vendorId && !acc[u.vendorId]) acc[u.vendorId] = u.displayName || u.email;
+    return acc;
+  }, {});
+
   // Batch-load all blobs for products that have images, then resolve thumbnails
   const productIds = (products || []).filter(p => p.images?.length).map(p => p.id);
   const blobsByProduct = {};
@@ -26,6 +32,7 @@ async function _fetchProducts(mode) {
   }));
 
   for (const p of products) {
+    p.vendorDisplayName = vendorMap[p.vendorId] || p.vendorId || '—';
     if (!p.images?.length) continue;
     const primaryIdx = p.primaryImageIndex ?? 0;
     const img = p.images[primaryIdx];
@@ -157,6 +164,7 @@ function renderTable(container, products, navigate, mode) {
     <thead>
       <tr>
         <th>Product</th>
+        <th>Vendor</th>
         <th>Category</th>
         <th>Material</th>
         <th>Status</th>
@@ -187,6 +195,9 @@ function renderTable(container, products, navigate, mode) {
 
     const catTd = document.createElement('td');
     catTd.textContent = product.category || '—';
+
+    const vendorTd = document.createElement('td');
+    vendorTd.textContent = product.vendorDisplayName || '—';
 
     const matTd = document.createElement('td');
     matTd.textContent = product.material || '—';
@@ -219,7 +230,7 @@ function renderTable(container, products, navigate, mode) {
     );
     actionTd.appendChild(viewBtn);
 
-    tr.append(nameTd, catTd, matTd, statusTd, updatedTd, actionTd);
+    tr.append(nameTd, vendorTd, catTd, matTd, statusTd, updatedTd, actionTd);
     tbody.appendChild(tr);
   }
 

@@ -261,6 +261,7 @@ export async function render(container, navigate) {
       <thead>
         <tr>
           <th>Product</th>
+          <th>Vendor</th>
           <th>Category</th>
           <th>Status</th>
           <th>Updated</th>
@@ -279,10 +280,11 @@ export async function render(container, navigate) {
             <small>${esc(p.sku || '—')}</small>
           </div>
         </td>
+        <td>${esc(p.vendorId || '—')}</td>
         <td>${esc(p.category || '—')}</td>
         <td></td>
         <td style="color:var(--text-muted);font-size:12px">${formatRelativeTime(p.updatedAt)}</td>`;
-      tr.querySelector('td:nth-child(3)').appendChild(statusBadge(p.status));
+      tr.querySelector('td:nth-child(4)').appendChild(statusBadge(p.status));
       tbody.appendChild(tr);
     }
 
