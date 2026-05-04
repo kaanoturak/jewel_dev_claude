@@ -30,6 +30,17 @@ function variantsByProductId(variants) {
   return map;
 }
 
+function exportPrice(product, variant = null, channel = null) {
+  return getEffectivePrice(product, null, variant, channel);
+}
+
+function exportCompareAtPrice(product, variant = null) {
+  if (product.variantPricingEnabled === true && variant?.compareAtPrice != null) {
+    return variant.compareAtPrice;
+  }
+  return product.compareAtPrice ?? null;
+}
+
 // ─── Shopify CSV ──────────────────────────────────────────────────────────────
 
 const SHOPIFY_HEADERS = [
@@ -62,26 +73,29 @@ export function toShopifyCSV(products, variants) {
     const vendor    = product.vendorId || 'TuguJewelry';
     const type      = product.category || '';
     const tags      = Array.isArray(product.searchTags) ? product.searchTags.join(', ') : '';
-    const price     = product.sellingPrice != null ? String(product.sellingPrice) : '';
-    const compareAt = product.compareAtPrice != null ? String(product.compareAtPrice) : '';
-
     const pvs = vByProd[product.id] || [];
 
     if (pvs.length === 0) {
+      const price     = exportPrice(product);
+      const compareAt = exportCompareAtPrice(product);
       rows.push(csvRow([
         handle, title, bodyHtml, vendor, type, tags,
         product.sku || '', price, compareAt, '0',
       ]));
     } else {
       const [first, ...rest] = pvs;
+      const firstPrice     = exportPrice(product, first);
+      const firstCompareAt = exportCompareAtPrice(product, first);
       rows.push(csvRow([
         handle, title, bodyHtml, vendor, type, tags,
-        first.sku || '', price, compareAt, String(first.stockCount ?? 0),
+        first.sku || '', firstPrice, firstCompareAt, String(first.stockCount ?? 0),
       ]));
       for (const v of rest) {
+        const variantPrice     = exportPrice(product, v);
+        const variantCompareAt = exportCompareAtPrice(product, v);
         rows.push(csvRow([
           handle, '', '', '', '', '',
-          v.sku || '', price, compareAt, String(v.stockCount ?? 0),
+          v.sku || '', variantPrice, variantCompareAt, String(v.stockCount ?? 0),
         ]));
       }
     }
@@ -118,8 +132,8 @@ export function toJSONFeed(products, variants) {
     })),
     variants: (vByProd[product.id] || []).map(v => ({
       sku:               v.sku,
-      price:             getEffectivePrice(product, null),
-      compareAtPrice:    product.compareAtPrice ?? null,
+      price:             exportPrice(product, v),
+      compareAtPrice:    exportCompareAtPrice(product, v),
       inventoryQuantity: v.stockCount ?? 0,
       option1:           v.size  ?? null,
       option2:           v.color ?? null,
@@ -178,7 +192,7 @@ export function toJsonLD(products, variants, channel = null) {
 }
 
 function _buildSingleJsonLD(product, variant, channel) {
-  const price = getEffectivePrice(product, null, variant, channel);
+  const price = exportPrice(product, variant, channel);
   
   return {
     "@context": "https://schema.org/",
