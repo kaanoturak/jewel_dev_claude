@@ -433,7 +433,7 @@ function _buildActionBar(pageEl, product, variants, navigate, returnTo, pricingC
 
     await DB.patch('products', product.id, {
       ...pricing,
-      variantPricingEnabled: hasVariantPrice,
+      variantPricingEnabled: product.variantPricingEnabled === true,
       updatedBy: user?.userId,
       updatedAt: Date.now(),
     });
