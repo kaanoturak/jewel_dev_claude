@@ -121,7 +121,7 @@ async function addAdminCosts(productId, marginPct = 35) {
     adminMarketingCost:  1.50,
     adminMiscCost:       0.50,
   };
-  const { transferPrice } = calculate({ ...p, ...adminCosts });
+  const { transferPrice } = await calculate({ ...p, ...adminCosts });
   
   await DB.patch('products', productId, { 
     ...adminCosts, 

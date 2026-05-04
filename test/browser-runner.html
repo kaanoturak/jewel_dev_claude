@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TuguPIM Test Runner</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "./shims/firebase-app.js",
+        "firebase/firestore": "./shims/firebase-firestore.js",
+        "firebase/auth": "./shims/firebase-auth.js",
+        "firebase/storage": "./shims/firebase-storage.js"
+      }
+    }
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; color: #1f2937; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+    button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    button:hover { background: #f8fafc; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 16px; border-radius: 8px; min-height: 260px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>TuguPIM Test Runner</h1>
+  <p>Runs browser ESM tests with local Firebase shims, so no real Firebase project is required.</p>
+  <div class="toolbar">
+    <button data-test="./engine.test.js">Engine</button>
+    <button data-test="./validator.test.js">Validator</button>
+    <button data-test="./db.test.js">SKU / DB</button>
+    <button data-test="./e2e.test.js">E2E</button>
+    <button id="run-all">Run All</button>
+    <button id="clear">Clear</button>
+  </div>
+  <pre id="output"></pre>
+
+  <script type="module">
+    import { initFirebase, registerUserGetter } from '../src/core/api.js';
+    import { getCurrentUser } from '../src/modules/auth/index.js';
+
+    const output = document.querySelector('#output');
+    const tests = Array.from(document.querySelectorAll('[data-test]')).map(btn => btn.dataset.test);
+
+    function write(kind, args) {
+      const line = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ');
+      output.textContent += `[${kind}] ${line}\n`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    for (const method of ['log', 'info', 'warn', 'error']) {
+      const original = console[method].bind(console);
+      console[method] = (...args) => {
+        original(...args);
+        write(method, args);
+      };
+    }
+
+    await initFirebase();
+    registerUserGetter(getCurrentUser);
+
+    async function runTest(path) {
+      write('runner', [`Running ${path}`]);
+      await import(`${path}?run=${Date.now()}`);
+    }
+
+    document.body.addEventListener('click', async event => {
+      const testPath = event.target.dataset.test;
+      if (testPath) await runTest(testPath);
+    });
+
+    document.querySelector('#run-all').addEventListener('click', async () => {
+      for (const test of tests) await runTest(test);
+    });
+
+    document.querySelector('#clear').addEventListener('click', () => {
+      output.textContent = '';
+    });
+  </script>
+</body>
+</html>

@@ -20,25 +20,25 @@ function assert(label, condition, detail = '') {
   }
 }
 
-function testCostBase() {
+async function testCostBase() {
   console.group('1. Cost Base Calculation');
 
   const p1 = { costMaterial: 10, costLabor: 5, costPackaging: 2.5 };
-  const res1 = calculate(p1);
+  const res1 = await calculate(p1);
   assert('Sum of material, labor, and packaging', res1.costBase === 17.5, res1.costBase);
 
   const p2 = { costMaterial: '10.50', costLabor: '5.25' };
-  const res2 = calculate(p2);
+  const res2 = await calculate(p2);
   assert('Handles numeric strings and missing fields', res2.costBase === 15.75, res2.costBase);
 
   const p3 = {};
-  const res3 = calculate(p3);
+  const res3 = await calculate(p3);
   assert('Handles empty object (defaults to 0)', res3.costBase === 0, res3.costBase);
 
   console.groupEnd();
 }
 
-function testTransferPrice() {
+async function testTransferPrice() {
   console.group('2. Transfer Price Calculation');
 
   const p1 = {
@@ -49,15 +49,15 @@ function testTransferPrice() {
     adminMiscCost: 1,       // 27 + 1 = 28
     adminMarginPct: 50,     // 28 * 1.5 = 42
   };
-  const res1 = calculate(p1);
+  const res1 = await calculate(p1);
   assert('Full admin layer pipeline', res1.transferPrice === 42, res1.transferPrice);
 
   const p2 = { costMaterial: 10, adminMarginPct: null };
-  const res2 = calculate(p2);
+  const res2 = await calculate(p2);
   assert('Returns null if adminMarginPct is missing', res2.transferPrice === null, res2.transferPrice);
 
   const p3 = { costMaterial: 10, adminMarginPct: 0 };
-  const res3 = calculate(p3);
+  const res3 = await calculate(p3);
   assert('Works with 0% margin', res3.transferPrice === 10, res3.transferPrice);
 
   console.groupEnd();
@@ -101,8 +101,8 @@ function testEffectivePrice() {
 
 async function run() {
   console.group('%cTuguPIM — Engine Tests', 'font-weight:bold; font-size:14px');
-  testCostBase();
-  testTransferPrice();
+  await testCostBase();
+  await testTransferPrice();
   testEffectivePrice();
 
   const total = _passed + _failed;
