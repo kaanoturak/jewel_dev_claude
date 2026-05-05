@@ -78,16 +78,18 @@ function _validateProductReadiness(product, toStatus, variants = []) {
   }
 
   if (toStatus === 'READY_FOR_ECOMMERCE' || toStatus === 'PUBLISHED') {
-    const globalPrice = Number(product.sellingPrice) > 0;
-    if (variants.length > 0) {
-      const anyVariantPrice = variants.some(v => Number(v.sellingPrice) > 0);
-      if (!globalPrice && !anyVariantPrice) {
+    const hasGlobalPrice = product.sellingPrice != null && Number(product.sellingPrice) >= 0;
+    const isVpEnabled    = product.variantPricingEnabled === true;
+
+    if (variants.length > 0 && isVpEnabled) {
+      const anyVariantPrice = variants.some(v => v.sellingPrice != null && Number(v.sellingPrice) >= 0);
+      if (!hasGlobalPrice && !anyVariantPrice) {
         throw new Error(
           'At least one variant must have a selling price, or a default product selling price must be set'
         );
       }
     } else {
-      if (!globalPrice) {
+      if (!hasGlobalPrice) {
         throw new Error('Selling price must be set before marking product as ready for e-commerce');
       }
     }

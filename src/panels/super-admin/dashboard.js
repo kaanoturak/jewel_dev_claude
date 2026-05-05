@@ -17,11 +17,12 @@ const STATUS_ORDER = [
 // ─── Data ──────────────────────────────────────────────────────────────────────
 
 async function _fetchData() {
-  const [allProducts, allUsers, allVariants, allCampaigns] = await Promise.all([
+  const [allProducts, allUsers, allVariants, allCampaigns, allAuditLogs] = await Promise.all([
     DB.getAll('products'),
     DB.getAll('users'),
     DB.getAll('variants'),
     DB.getAll('campaigns'),
+    DB.getAll('auditLog'),
   ]);
 
   const products = allProducts || [];
@@ -44,7 +45,12 @@ async function _fetchData() {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, 15);
 
-  return { products, byStatus, outOfStock, activeUsers, activeCampaigns, recentProducts };
+  const recentOverrideLogs = (allAuditLogs || [])
+    .filter(e => e.action === 'PERMISSION_OVERRIDE')
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .slice(0, 8);
+
+  return { products, byStatus, outOfStock, activeUsers, activeCampaigns, recentProducts, recentOverrideLogs };
 }
 
 // ─── Render ────────────────────────────────────────────────────────────────────
@@ -150,6 +156,53 @@ export async function render(container, navigate) {
       saveCommBtn.textContent = 'Update Rate';
     }
   });
+
+  // ── Settings audit review ─────────────────────────────────────────────────
+  const reviewSection = document.createElement('div');
+  reviewSection.className = 'section';
+
+  const rHdr = document.createElement('div');
+  rHdr.className = 'section-header';
+  rHdr.innerHTML = `<span class="section-title">Settings Audit Review</span>`;
+  reviewSection.appendChild(rHdr);
+
+  const overrideSnapshot = getOverrides();
+  const overrideCount = Object.values(overrideSnapshot || {}).reduce(
+    (total, group) => total + Object.keys(group || {}).length,
+    0
+  );
+
+  const reviewCard = document.createElement('div');
+  reviewCard.className = 'card';
+  reviewCard.style.overflowX = 'auto';
+
+  const logRows = data.recentOverrideLogs.length
+    ? data.recentOverrideLogs.map(e => `
+        <tr>
+          <td style="white-space:nowrap;color:var(--text-muted);font-size:12px">${formatRelativeTime(e.timestamp)}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${esc(e.userId || '—')}</td>
+          <td style="font-size:12px;white-space:pre-wrap;word-break:break-word">${esc(e.notes || '—')}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="3" style="color:var(--text-muted);font-size:13px">No settings or permission override events logged yet.</td></tr>`;
+
+  reviewCard.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px"><strong>${esc(currentComm)}%</strong> <span style="color:var(--text-muted)">commission rate</span></div>
+      <div style="font-size:13px"><strong>${overrideCount}</strong> <span style="color:var(--text-muted)">active override${overrideCount !== 1 ? 's' : ''}</span></div>
+    </div>
+    <table class="products-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>User</th>
+          <th>Event</th>
+        </tr>
+      </thead>
+      <tbody>${logRows}</tbody>
+    </table>`;
+
+  reviewSection.appendChild(reviewCard);
+  container.appendChild(reviewSection);
 
   // ── Status breakdown ──────────────────────────────────────────────────────
   const breakdownSection = document.createElement('div');

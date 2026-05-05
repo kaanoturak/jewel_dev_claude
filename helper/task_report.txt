@@ -1,0 +1,133 @@
+# TuguJewelry Insider PIM – Technical Project Context (for LLM Agents)
+
+> **Purpose:** This document gives autonomous coding agents a clear, up-to‑date view of the project’s architecture, constraints, and remaining work.
+> **Last Update:** 2026‑05‑04 (derived from live code and merged analysis)
+
+---
+
+## 1. Project Identity & Overview
+
+- **Project:** TuguJewelry Insider PIM (Product Information Management)
+- **Purpose:** Multi‑role back‑office system that manages handmade jewellery (brass, gold, silver) from creation to e‑commerce readiness.
+- **Roles:** `MANUFACTURER`, `ADMIN`, `SALES`, `SUPER_ADMIN`
+- **Platform:** Browser‑only; no build step. ES modules are loaded directly from `index.html`.
+- **How to run:** Serve the root folder with any HTTP server (e.g. `npx serve .`) and open the page.
+
+---
+
+## 2. Architecture & Tech Stack
+
+| Layer | Technology | Notes |
+|-------|------------|-------|
+| **UI** | Vanilla JS, CSS Custom Properties | Role‑based panels (sidebar + content). Panels are loaded dynamically. |
+| **State** | `src/core/state.js` | Centralised reactive store with integrated auth, validation and logging. |
+| **Business Logic** | `src/core/engine.js` (pure), `src/modules/*` | Cost calculations, workflow transitions, validation schemas. |
+| **DB** | Firebase Firestore (through `src/core/api.js`) | **Important:** The system migrated from IndexedDB to Firebase Cloud. `src/core/db.js` now just re‑exports `CloudDB`. |
+| **Auth** | Firebase Auth (Email/Password) | Roles are stored in the `users` collection. Session restored via `onAuthStateChanged`. |
+| **Storage** | Firebase Storage | Media files live under `media/`. |
+| **Tests** | Browser‑native ESM tests (`/test/`) with custom Firebase shims. | No Node.js, no package.json. Run via `test/browser-runner.html`. |
+
+---
+
+## 3. Critical Files & Their Responsibilities
+
+| File / Module | Purpose & What Agents Must Know |
+|---|---|
+| `src/core/api.js` | **CloudDB adapter.** All CRUD, tenant (`vendorId`) filtering, dynamic validation, atomic SKU increment. |
+| `src/core/engine.js` | **Pure calculations.** `calculate()`, `getEffectivePrice()`, `calculateVariantTransferPrice()`. Campaign and marketplace commission formulas. |
+| `src/core/validator.js` | **Validation schemas.** `PRODUCT_SCHEMA`, `VARIANT_SCHEMA`, `ADMIN_COST_SCHEMA`, etc. `min:0` now allows zero/free values. |
+| `src/modules/auth/index.js` | **Permission enforcement.** `canEdit`, `canTransition`, `canDo`. Static rules in `permissions.js`; dynamic overrides are supported. |
+| `src/modules/workflow/index.js` | **State machine.** `ALLOWED_TRANSITIONS`, `transition()`. Required notes for revision/rejection; sales revision lands in Admin queue. |
+| `src/panels/sales/product-detail.js` | Per‑variant pricing, campaign selection, live effective price preview. |
+| `src/panels/admin/product-detail.js` | Admin cost layer, per‑variant transfer price calculation. |
+| `src/shared/utils/index.js` | **`safeHtml()`** (XSS sanitizer), `esc()`, `statusBadge()`, `generateUUID()` etc. |
+
+---
+
+## 4. Data Model (Firestore Collections)
+
+| Collection | Key Field | Description |
+|---|---|---|
+| `products` | `id` | Full product record (cost, price, descriptions, media metadata). |
+| `variants` | `variantId` | Indexed by `productId`. Per‑variant cost, price, stock. **Boot migration hydrates cost fields.** |
+| `auditLog` | `logId` (auto) | All actions and status changes. Fire‑and‑forget writes. |
+| `campaigns` | `campaignId` | Discount campaigns (percentage/fixed). Scope: all products or selected list. |
+| `users` | `userId` | User profiles. `role` and `vendorId` determine permissions. |
+| `settings` | `settingId` | SKU counter, `permissionOverrides`, `marketplace_config`, etc. |
+| `mediaBlobs` | `blobId` | References to files in Firebase Storage. |
+
+**Tenant Isolation:** The adapter automatically injects `vendorId` on writes for non‑admin users, and filters reads accordingly. Platform‑level admins have `vendorId: null`.
+
+---
+
+## 5. Workflow Summary
+
+**Happy Path:**  
+`DRAFT` (Mfr) → `PENDING_ADMIN` (Admin) → `PENDING_SALES` (Sales) → `READY_FOR_ECOMMERCE`
+
+**Sales Revision Loop (CRITICAL RULE):**  
+Sales **never** sends revisions directly to the Manufacturer.  
+`PENDING_SALES` → `REVISION_REQUESTED_BY_SALES` (lands in Admin queue) → Admin decides:  
+- Forward immediately back to `PENDING_SALES`, **or**  
+- Escalate to Manufacturer via `REVISION_REQUESTED_BY_ADMIN`.
+
+**Super Admin:** Can override any transition, including recovery from `REJECTED`/`ARCHIVED`.
+
+**Transition guards:**  
+- `notes` are mandatory for `REVISION_*` and `REJECTED`.  
+- At least one variant price or a product‑level `sellingPrice > 0` is required for `READY_FOR_ECOMMERCE`.
+
+---
+
+## 6. Current Status & Completed Features
+
+**All phases (0‑6) are complete:**
+- ✅ Full 4‑role panel implementation.
+- ✅ Per‑variant cost & pricing (Amazon‑style).
+- ✅ Marketplace commission engine (global rate, stored in settings).
+- ✅ Dynamic permission overrides (Super Admin panel).
+- ✅ Campaign system (percentage/fixed, selected products).
+- ✅ Shopify CSV, JSON Feed, and JSON‑LD exports.
+- ✅ Tenant isolation (`vendorId`) and XSS‑safe HTML (`safeHtml`).
+- ✅ Boot‑time migrations (variant cost hydration, legacy vendor assignment).
+- ✅ Comprehensive test suite (16 groups, ~160 assertions) running in the browser.
+
+---
+
+## 7. Known Limitations & Technical Debt (Backlog)
+
+**Security & Infrastructure:**
+1. **Firebase Config:** `src/core/firebase-config.js` still contains placeholder values. A real Firebase project must be set up.
+2. **Missing Firestore Security Rules:** Client‑side tenant filtering exists, but **no server‑side rules enforce it.** This is a critical security gap.
+3. **User Registration:** Only a login form exists; users must be created manually by a Super Admin.
+
+**Testing & Documentation:**
+4. **Test Execution:** Node‑based tests won’t work (only browser shims). There is no CI pipeline. The manual test checklist (`MANUAL_TEST_CHECKLIST.md`) has not been run.
+5. **Documentation Drift:** Older docs (`ANALYSIS.md`, `SPEC.md`) still reference IndexedDB in some places. **This file is the current source of truth.**
+
+**Functional Gaps:**
+6. **Export Enhancements:** Shopify CSV and JSON‑LD exports do **not** fully leverage variant‑level prices or `channelConfig` yet (though basic export tests pass).
+7. **Super Admin Settings View:** The marketplace commission rate can be changed from the dashboard, but there is no dedicated “Settings” panel.
+8. **Image Optimisation:** No automatic compression or WebP conversion on upload.
+
+---
+
+## 8. Test Status
+
+- **Runner:** Open `test/browser-runner.html` in a browser (over HTTP). All test suites can be triggered individually or with “Run All”.
+- **Suites:** `db.test.js` (SKU logic), `engine.test.js`, `validator.test.js`, `export.test.js`, `e2e.test.js` (full workflow + permission enforcement).
+- **Expected Outcome:** All tests should pass (160+ assertions pass). Firebase shims provide a fully offline test environment.
+
+---
+
+## 9. Development Notes for Agents
+
+- **Surgical Changes Only:** Avoid large‑scale refactoring or formatting‑only changes. One commit = one logical change.
+- **New Collections/Indices:** If you add a collection or index, update `KEY_PATHS` in `src/core/api.js` and, when necessary, add a migration in `runSafeMigration()`.
+- **UI Safety:** Always use `esc()` or `safeHtml()` from `src/shared/utils/index.js` before setting `innerHTML`. Never trust raw user input.
+- **Workflow Changes:** Any new status or transition must be reflected in `src/modules/workflow/index.js` **and** `src/modules/auth/permissions.js`.
+- **Project Language:** All UI text, error messages, and comments must remain in English.
+
+---
+
+*This document is the authoritative, up‑to‑date reference for the TuguPIM project. Lean, technical, and agent‑friendly.*

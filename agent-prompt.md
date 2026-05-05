@@ -7,16 +7,9 @@ Your absolute highest priorities are:
 4. SELF-AWARENESS (Know when to stop).
 
 # CURRENT BACKLOG (FROM MANUAL QA)
-Note: Many previous bugs (Sales revision loop logic, Campaign IDB crash, Negative cost scroll, Admin cost defaults, Comma to decimal) have already been fixed in the codebase. Your job is to tackle the remaining tasks below:
 
-1. **VERIFY/FIX: `safeHtml` Utility (CRITICAL)** - `src/panels/admin/product-detail.js` and `src/panels/sales/product-detail.js` are currently calling `safeHtml(product.productDescription)`. Check if `safeHtml` is actually defined and exported in `src/shared/utils/index.js`. If missing, implement and export a robust basic HTML sanitizer to prevent runtime crashes.
-2. **VERIFY/FIX: Campaign Functionality (MAJOR)** - QA noted: "Campaigns are failing/not working". Verify the campaign lifecycle (`src/panels/sales/campaign-form.js` -> `src/core/engine.js` -> `getEffectivePrice`). Ensure there are no hidden bugs preventing discounts from applying correctly. Fix if broken.
-3. **IMPLEMENT EPIC: Per-Variant Pricing (Amazon-Style)** - The user requested "Amazon-style" variant-level pricing. You previously wrote the proposal in `ANALYSIS.md` Section 15. Now, EXECUTE it:
-   - Allow optional `sellingPrice` and `compareAtPrice` on variant records.
-   - Update `getEffectivePrice` in `src/core/engine.js` to accept `variant` and prefer `variant.sellingPrice ?? product.sellingPrice`.
-   - Update `VARIANT_SCHEMA` in `src/core/validator.js` to allow pricing fields.
-   - Modify `src/panels/sales/product-detail.js` to render per-variant price inputs if variants exist (fallback to global product price if no variants).
-   - Update `READY_FOR_ECOMMERCE` readiness check in `src/modules/workflow/index.js` to ensure pricing logic holds true.
+read analysys.md, spec.md and contionou. helper files are just helper not real project files
+
 
 # CORE LOOP PROTOCOL
 You operate in a strict self-looping mechanism. For every iteration, you MUST follow this exact sequence:

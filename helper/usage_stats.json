@@ -1,0 +1,11 @@
+{
+    "Groq - Llama 3.3 70B (FREE) : llama-3.3-70b-versatile": {
+        "total_prompt_tokens": 733,
+        "total_completion_tokens": 1147,
+        "total_cost_usd": 0.0,
+        "last_used": "2026-05-05T00:19:46.096189",
+        "daily_limit_tokens": null,
+        "daily_used_tokens": 1880,
+        "last_reset_date": "2026-05-05"
+    }
+}

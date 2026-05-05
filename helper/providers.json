@@ -1,0 +1,128 @@
+{
+  "Groq": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.groq.com/openai/v1/chat/completions",
+    "models": [
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
+      "mixtral-8x7b-32768",
+      "gemma2-9b-it",
+      "deepseek-r1-distill-llama-70b"
+    ]
+  },
+  "OpenRouter": {
+    "type": "openai",
+    "key": "",
+    "url": "https://openrouter.ai/api/v1/chat/completions",
+    "models": [
+      "meta-llama/llama-3.1-70b-instruct:free",
+      "meta-llama/llama-3.1-8b-instruct:free",
+      "mistralai/mistral-7b-instruct:free",
+      "google/gemma-2-9b-it:free",
+      "deepseek/deepseek-r1:free",
+      "qwen/qwen-2.5-72b-instruct:free"
+    ]
+  },
+  "Google Gemini": {
+    "type": "gemini",
+    "key": "",
+    "url": "",
+    "models": [
+      "gemini-1.5-pro",
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+      "gemini-2.0-flash"
+    ]
+  },
+  "DeepSeek": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.deepseek.com/v1/chat/completions",
+    "models": [
+      "deepseek-chat",
+      "deepseek-coder",
+      "deepseek-reasoner"
+    ]
+  },
+  "HuggingFace": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api-inference.huggingface.co/v1/chat/completions",
+    "models": [
+      "mistralai/Mistral-7B-Instruct-v0.3",
+      "meta-llama/Meta-Llama-3-8B-Instruct",
+      "Qwen/Qwen2.5-72B-Instruct",
+      "google/gemma-2-9b-it"
+    ]
+  },
+  "Mistral": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.mistral.ai/v1/chat/completions",
+    "models": [
+      "mistral-small-latest",
+      "mistral-large-latest",
+      "ministral-8b-latest"
+    ]
+  },
+  "Together": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.together.xyz/v1/chat/completions",
+    "models": [
+      "meta-llama/Llama-3-70b-chat-hf",
+      "meta-llama/Llama-3-8b-chat-hf",
+      "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      "Qwen/Qwen2.5-72B-Instruct"
+    ]
+  },
+  "Fireworks": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+    "models": [
+      "accounts/fireworks/models/llama-v3p1-70b-instruct",
+      "accounts/fireworks/models/mixtral-8x7b-instruct"
+    ]
+  },
+  "Cerebras": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.cerebras.ai/v1/chat/completions",
+    "models": [
+      "llama-3.3-70b",
+      "qwen-2.5-72b"
+    ]
+  },
+  "SambaNova": {
+    "type": "openai",
+    "key": "",
+    "url": "https://api.sambanova.ai/v1/chat/completions",
+    "models": [
+      "llama-3.3-70b",
+      "llama-3.1-8b"
+    ]
+  },
+  "NVIDIA NIM": {
+    "type": "openai",
+    "key": "",
+    "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+    "models": [
+      "meta/llama-3.1-70b-instruct",
+      "mistralai/mixtral-8x22b-instruct",
+      "qwen/qwen2.5-72b-instruct"
+    ]
+  },
+  "Ollama (Local)": {
+    "type": "openai",
+    "key": "ollama",
+    "url": "http://localhost:11434/v1/chat/completions",
+    "models": [
+      "llama3",
+      "mistral",
+      "qwen2.5",
+      "phi3"
+    ]
+  }
+}
